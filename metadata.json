@@ -1,0 +1,6 @@
+{
+  "name": "Harmonix - Nauka Progresji Akordów",
+  "description": "Interaktywna nauka pięknych progresji akordów na pianinie z wizualizacją dźwięków, quizami harmonicznymi i wskazówkami z teorii muzyki.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
