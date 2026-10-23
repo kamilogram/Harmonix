@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useRef } from 'react';
 import {
   FamousProgression,
   ChordDefinition,
@@ -14,6 +14,7 @@ import {
   getNoteLabel,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
+import { scrollToLoadedProgressionCard } from '../utils/scrollHelper';
 import {
   Play,
   Square,
@@ -89,12 +90,133 @@ export function getProgressionRomanFormula(prog: FamousProgression): {
   };
 }
 
+export type ProgressionFormType = 'all' | 'progression' | 'song';
+
+export function isProgressionFullSong(prog: FamousProgression): boolean {
+  return prog.steps.some((s) => Boolean(s.section)) || prog.id.startsWith('song_');
+}
+
+export interface ProgressionDifficultyInfo {
+  score: number;
+  level: 1 | 2 | 3 | 4 | 5;
+  label: 'Bardzo łatwy' | 'Łatwy' | 'Średni' | 'Zaawansowany' | 'Mistrzowski';
+  badgeColor: string;
+}
+
+export function calculateProgressionDifficulty(prog: FamousProgression): ProgressionDifficultyInfo {
+  let score = 0;
+  const isFullSong = isProgressionFullSong(prog);
+
+  // 1. Długość progresji
+  score += Math.min(prog.steps.length * 1.5, 18);
+
+  // 2. Struktura wieloczęściowa (Zwrotka, Refren, Bridge itp.)
+  if (isFullSong) {
+    const sections = new Set(prog.steps.map((s) => s.section).filter(Boolean));
+    score += Math.max(sections.size * 5, 12);
+  }
+
+  // 3. Liczba unikalnych akordów
+  const uniqueChords = new Set(prog.steps.map((s) => s.symbol));
+  score += uniqueChords.size * 1.6;
+
+  // 4. Zaawansowanie harmoniczne akordów (septymy, zawieszenia, seksty, aug, dim)
+  prog.steps.forEach((st) => {
+    const sym = st.symbol;
+    const deg = st.degree || '';
+
+    if (
+      sym.includes('dim') ||
+      sym.includes('°') ||
+      sym.includes('m7b5') ||
+      sym.includes('ø') ||
+      deg.includes('dim') ||
+      deg.includes('°')
+    ) {
+      score += 7;
+    } else if (sym.includes('aug') || sym.includes('+') || deg.includes('+')) {
+      score += 6;
+    } else if (sym.includes('6') || sym.includes('m6') || deg.includes('6')) {
+      score += 5;
+    } else if (sym.includes('maj7') || sym.includes('7sus4') || deg.includes('maj7')) {
+      score += 3.5;
+    } else if (
+      sym.includes('sus2') ||
+      sym.includes('sus4') ||
+      sym.includes('add9') ||
+      deg.includes('sus') ||
+      deg.includes('add9')
+    ) {
+      score += 2.5;
+    } else if (sym.includes('7') || sym.includes('m7') || deg.includes('7')) {
+      score += 2;
+    } else {
+      score += 0.5; // prosty trójdźwięk dur / moll
+    }
+
+    // Dominanty wtrącone, medianty chromatyczne, substytuty
+    if (
+      deg.includes('V/') ||
+      deg.includes('bVI') ||
+      deg.includes('bIII') ||
+      deg.includes('#I') ||
+      deg.includes('SubV') ||
+      deg.includes('Dorycki')
+    ) {
+      score += 4;
+    }
+  });
+
+  // Cykl Coltrane'a to szczyt zaawansowania jazzowego
+  if (prog.id === 'jazz_coltrane_changes') {
+    score += 45;
+  }
+
+  if (score < 20) {
+    return {
+      score,
+      level: 1,
+      label: 'Bardzo łatwy',
+      badgeColor: 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30',
+    };
+  } else if (score < 30) {
+    return {
+      score,
+      level: 2,
+      label: 'Łatwy',
+      badgeColor: 'bg-teal-500/15 text-teal-300 border-teal-500/30',
+    };
+  } else if (score < 45) {
+    return {
+      score,
+      level: 3,
+      label: 'Średni',
+      badgeColor: 'bg-sky-500/15 text-sky-300 border-sky-500/30',
+    };
+  } else if (score < 65) {
+    return {
+      score,
+      level: 4,
+      label: 'Zaawansowany',
+      badgeColor: 'bg-amber-500/15 text-amber-300 border-amber-500/30',
+    };
+  } else {
+    return {
+      score,
+      level: 5,
+      label: 'Mistrzowski',
+      badgeColor: 'bg-purple-500/15 text-purple-300 border-purple-500/30',
+    };
+  }
+}
+
 interface ProgressionLibraryProps {
   onLoadProgression: (chords: ChordDefinition[], metadata?: LoadedProgressionMetadata) => void;
   convention?: NamingConvention;
   workshopResults?: Record<number, WorkshopStepResult>;
   loadedProgressionId?: string | null;
   onClearWorkshopResults?: () => void;
+  isActiveView?: boolean;
 }
 
 const STORAGE_KEY = 'harmonix_progression_library_settings_v1';
@@ -103,6 +225,7 @@ interface StoredLibrarySettings {
   globalKeyRoot?: NoteName;
   globalKeyMode?: 'major' | 'minor';
   selectedGenre?: string;
+  selectedType?: ProgressionFormType;
   searchQuery?: string;
   cardKeyOverrides?: Record<string, NoteName>;
   revealedCardIds?: string[];
@@ -119,6 +242,7 @@ function loadStoredSettings(): StoredLibrarySettings {
           globalKeyRoot: typeof parsed.globalKeyRoot === 'string' && NOTE_NAMES.includes(parsed.globalKeyRoot as NoteName) ? parsed.globalKeyRoot : 'C',
           globalKeyMode: parsed.globalKeyMode === 'minor' ? 'minor' : 'major',
           selectedGenre: typeof parsed.selectedGenre === 'string' ? parsed.selectedGenre : 'all',
+          selectedType: parsed.selectedType === 'progression' || parsed.selectedType === 'song' ? parsed.selectedType : 'all',
           searchQuery: typeof parsed.searchQuery === 'string' ? parsed.searchQuery : '',
           cardKeyOverrides: parsed.cardKeyOverrides && typeof parsed.cardKeyOverrides === 'object' && !Array.isArray(parsed.cardKeyOverrides) ? parsed.cardKeyOverrides : {},
           revealedCardIds: Array.isArray(parsed.revealedCardIds) ? parsed.revealedCardIds : [],
@@ -137,6 +261,7 @@ function loadStoredSettings(): StoredLibrarySettings {
     globalKeyRoot: 'C',
     globalKeyMode: 'major',
     selectedGenre: 'all',
+    selectedType: 'all',
     searchQuery: '',
     cardKeyOverrides: {},
     revealedCardIds: [],
@@ -175,6 +300,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   workshopResults = {},
   loadedProgressionId = null,
   onClearWorkshopResults,
+  isActiveView = false,
 }) => {
   const stored = useMemo(() => loadStoredSettings(), []);
 
@@ -202,6 +328,29 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       setLastLoadedProgressionId(loadedProgressionId);
     }
   }, [loadedProgressionId]);
+
+  // When switching to the Wzorce tab, smoothly scroll the view to the loaded progression
+  const prevActiveViewRef = useRef(isActiveView);
+  useEffect(() => {
+    const becameActive = Boolean(isActiveView && !prevActiveViewRef.current);
+    prevActiveViewRef.current = isActiveView;
+
+    if (becameActive) {
+      const targetId = loadedProgressionId || lastLoadedProgressionId;
+      if (targetId) {
+        // Ensure the loaded progression is visible by resetting genre/search if it was filtered out
+        const targetProg = FAMOUS_PROGRESSIONS.find((p) => p.id === targetId);
+        if (targetProg && selectedGenre !== 'all' && !targetProg.genre.toLowerCase().includes(selectedGenre.toLowerCase())) {
+          setSelectedGenre('all');
+        }
+        if (searchQuery.trim()) {
+          setSearchQuery('');
+        }
+
+        scrollToLoadedProgressionCard(targetId);
+      }
+    }
+  }, [isActiveView, loadedProgressionId, lastLoadedProgressionId, selectedGenre, searchQuery]);
 
   // Set of progression IDs for which chords are currently revealed
   // DEFAULT: empty set (all hidden by default as requested!)
@@ -433,7 +582,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     setOpenCardKeyPickerId(null);
   };
 
-  const genres = ['all', 'Pop', 'Rock', 'Film', 'Jazz', 'Blues', 'Klasyka'];
+  const genres = ['all', 'Pop', 'Rock', 'Film', 'Jazz', 'Blues', 'Neo-Soul', 'Klasyka'];
 
   const filteredProgressions = useMemo(() => {
     const list = FAMOUS_PROGRESSIONS.filter((prog) => {
@@ -824,7 +973,10 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
           return (
             <div
               key={prog.id}
-              className={`p-5 rounded-2xl flex flex-col justify-between transition-all shadow-xl ${
+              id={`progression-card-${prog.id}`}
+              data-progression-id={prog.id}
+              data-loaded-progression={isLastLoaded ? 'true' : undefined}
+              className={`p-5 rounded-2xl flex flex-col justify-between transition-all duration-500 shadow-xl scroll-mt-24 ${
                 isLastLoaded
                   ? 'bg-slate-900 border-2 border-amber-400 ring-4 ring-amber-400/20 shadow-amber-500/10'
                   : 'bg-slate-900/90 border border-slate-800 hover:border-slate-700'

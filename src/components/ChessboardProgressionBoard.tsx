@@ -111,12 +111,15 @@ interface ChessboardProgressionBoardProps {
   loadedKeyInfo?: LoadedProgressionMetadata | null;
   onClearLoadedProgression?: () => void;
   onUpdateWorkshopResults?: (results: Record<number, WorkshopStepResult>) => void;
+  onNavigateToLibrary?: () => void;
 }
 
 // Helper to generate the exact starter steps matching the screenshot
 function createScreenshotStarterSteps(): BoardStep[] {
-  // Row 1 choices (from screenshot: C, Fm, D7, G#m)
+  // Row 1 choices: C, Cmaj7, Csus4, Fm, D7, G#m
   const cChord = createChordDefinition('C', 'major', 'I', 'Tonika (C-dur) – Czysty punkt wyjścia');
+  const cmaj7Chord = createChordDefinition('C', 'maj7', 'Imaj7', 'Aksamitna septyma wielka – Neo-soul / modern chill');
+  const csus4Chord = createChordDefinition('C', 'sus4', 'Isus4', 'Zawieszenie kwartowe – Stadionowe uniesienie');
   const fmChord = createChordDefinition('F', 'minor', 'iv', 'Zapożyczenie molowe – Emocjonalny twist');
   const d7Chord = createChordDefinition('D', 'dom7', 'II7', 'Dominanta wtrącona – Kierunek do G');
   const gsmChord = createChordDefinition('G#', 'minor', 'vi#', 'Odległy akord chromatyczny – Niezwykła barwa');
@@ -133,6 +136,30 @@ function createScreenshotStarterSteps(): BoardStep[] {
       fitTier: 'perfect',
       fitScore: 100,
       fitVerdict: 'Znakomity wybór! (100% dopasowania) – Idealna baza progresji w C-dur',
+    },
+    {
+      id: 'r1_cmaj7',
+      chord: cmaj7Chord,
+      degreeName: 'Imaj7 (C-dur z wielką septymą)',
+      moodLabel: 'Aksamitny, marzycielski chillout neo-soul',
+      explanation: 'Dodaje dźwięk H do C-dur, tworząc luksusowe, gładkie brzmienie jazzowo-popowe.',
+      whyItWorks: 'Wielka septyma nie burzy stabilności toniki, ale nadaje jej głębi.',
+      isRecommended: false,
+      fitTier: 'perfect',
+      fitScore: 95,
+      fitVerdict: 'Świetny, nowoczesny wybór! (95% dopasowania) – Aksamitne maj7',
+    },
+    {
+      id: 'r1_csus4',
+      chord: csus4Chord,
+      degreeName: 'Isus4 (Zawieszenie kwartowe C)',
+      moodLabel: 'Tajemnicze, unoszące się w powietrzu oczekiwanie',
+      explanation: 'Zastępuje tercję E kwartą F, która czeka na powrót do stabilnego C-dur.',
+      whyItWorks: 'Charakterystyczny motyw stadionowych ballad i rocka progresywnego.',
+      isRecommended: false,
+      fitTier: 'good',
+      fitScore: 86,
+      fitVerdict: 'Bardzo ciekawy wariant! (86% dopasowania) – Napięcie zawieszenia sus4',
     },
     {
       id: 'r1_fm',
@@ -172,11 +199,13 @@ function createScreenshotStarterSteps(): BoardStep[] {
     },
   ];
 
-  // Row 2 choices (from screenshot: Am, E7, Bbm, F)
+  // Row 2 choices: Am, Am7, F, Fmaj7, E7, Bbm
   const amChord = createChordDefinition('A', 'minor', 'vi', 'Paralela molowa – Melancholijny pop');
+  const am7Chord = createChordDefinition('A', 'min7', 'vi7', 'Molowa septyma – Ciepły, soulowy spokój');
+  const fChord = createChordDefinition('F', 'major', 'IV', 'Subdominanta – Otwarte uniesienie');
+  const fmaj7Chord = createChordDefinition('F', 'maj7', 'IVmaj7', 'Subdominanta maj7 – Szlachetna przestrzeń');
   const e7Chord = createChordDefinition('E', 'dom7', 'III7', 'Dominanta wtrącona do A-moll');
   const bbmChord = createChordDefinition('A#', 'minor', 'bvii', 'Akord neapolitański / obcy');
-  const fChord = createChordDefinition('F', 'major', 'IV', 'Subdominanta – Otwarte uniesienie');
 
   const row2Choices: QuizChoice[] = [
     {
@@ -192,6 +221,18 @@ function createScreenshotStarterSteps(): BoardStep[] {
       fitVerdict: 'Znakomity wybór! (100% dopasowania) – Najpopularniejszy krok po C w muzyce pop',
     },
     {
+      id: 'r2_am7',
+      chord: am7Chord,
+      degreeName: 'vi7 (A-moll z septymą – Am7)',
+      moodLabel: 'Ciepły, aksamitny relaks neo-soul / lofi',
+      explanation: 'Am7 łączy dźwięki A-C-E-G. Ostatni dźwięk G to tonika C-dur, co daje niesamowitą gładkość.',
+      whyItWorks: 'Dźwięk G pozostaje wspólny, sprawiając że przejście z C jest niewymuszone.',
+      isRecommended: false,
+      fitTier: 'perfect',
+      fitScore: 98,
+      fitVerdict: 'Znakomity wybór! (98% dopasowania) – Aksamitny Am7',
+    },
+    {
       id: 'r2_f',
       chord: fChord,
       degreeName: 'IV (Subdominanta – F-dur)',
@@ -202,6 +243,18 @@ function createScreenshotStarterSteps(): BoardStep[] {
       fitTier: 'perfect',
       fitScore: 94,
       fitVerdict: 'Świetny wybór! (94% dopasowania) – Ciepła subdominanta otwierająca przestrzeń',
+    },
+    {
+      id: 'r2_fmaj7',
+      chord: fmaj7Chord,
+      degreeName: 'IVmaj7 (F-dur z wielką septymą)',
+      moodLabel: 'Rozmarzona, filmowa subdominanta',
+      explanation: 'F-A-C-E zawiera w sobie cały trójdźwięk C-dur (C-E), co tworzy eteryczną więź z toniką.',
+      whyItWorks: 'Dźwięk E śpiewa jako szlachetna wielka septyma.',
+      isRecommended: false,
+      fitTier: 'perfect',
+      fitScore: 93,
+      fitVerdict: 'Świetny wybór! (93% dopasowania) – Szlachetny Fmaj7',
     },
     {
       id: 'r2_e7',
@@ -229,8 +282,10 @@ function createScreenshotStarterSteps(): BoardStep[] {
     },
   ];
 
-  // Row 3 choices (from screenshot: G, C7, Em, A#m)
+  // Row 3 choices: G, Gsus4, Cadd9, Em, C7, A#m
   const gChord = createChordDefinition('G', 'major', 'V', 'Dominanta – Zastrzyk energii');
+  const gsus4Chord = createChordDefinition('G', 'sus4', 'Vsus4', 'Zawieszenie dominanty – Narastające uniesienie');
+  const cadd9Chord = createChordDefinition('C', 'add9', 'Iadd9', 'Przestrzenny kolor pop/acoustic');
   const c7Chord = createChordDefinition('C', 'dom7', 'I7', 'Tonika septymowa – Blues/Funk');
   const emChord = createChordDefinition('E', 'minor', 'iii', 'Medianta – Nostalgiczny zmierzch');
   const ashmChord = createChordDefinition('A#', 'minor', 'vii#', 'Akord obcy');
@@ -247,6 +302,30 @@ function createScreenshotStarterSteps(): BoardStep[] {
       fitTier: 'perfect',
       fitScore: 100,
       fitVerdict: 'Znakomity wybór! (100% dopasowania) – Kluczowa dominanta spajająca utwór',
+    },
+    {
+      id: 'r3_gsus4',
+      chord: gsus4Chord,
+      degreeName: 'Vsus4 (Zawieszenie kwartowe dominanty)',
+      moodLabel: 'Podniosłe, stadionowe zawieszenie',
+      explanation: 'Gsus4 (G-C-D) zawiesza rozwiązanie, podkręcając apetyt ucha na czyste G i C.',
+      whyItWorks: 'Dźwięk C trzyma się w pamięci słuchacza przed rozwiązaniem na nutę H.',
+      isRecommended: false,
+      fitTier: 'perfect',
+      fitScore: 96,
+      fitVerdict: 'Świetny wybór! (96% dopasowania) – Epickie zawieszenie przed kadencją',
+    },
+    {
+      id: 'r3_cadd9',
+      chord: cadd9Chord,
+      degreeName: 'Iadd9 (C-dur z dodaną dziewiątką D)',
+      moodLabel: 'Krystaliczny, przestrzenny pop/rock',
+      explanation: 'Dodanie nuty D do akordu C nadaje mu blask nowoczesnej ballady akustycznej.',
+      whyItWorks: 'Druga/dziewiąta nuta skali nie wprowadza dysonansu septymy, lecz lśniący blask.',
+      isRecommended: false,
+      fitTier: 'good',
+      fitScore: 88,
+      fitVerdict: 'Bardzo dobry wybór! (88% dopasowania) – Przestrzenny Cadd9',
     },
     {
       id: 'r3_em',
@@ -286,8 +365,10 @@ function createScreenshotStarterSteps(): BoardStep[] {
     },
   ];
 
-  // Row 4 choices (from screenshot: Dm, F#7, Bb, Ebm)
+  // Row 4 choices: Dm, Dm7, Fm6, Bb, F#7, Ebm
   const dmChord = createChordDefinition('D', 'minor', 'ii', 'Subdominanta molowa – Jazz 2-5-1');
+  const dm7Chord = createChordDefinition('D', 'min7', 'ii7', 'Jazzowo-soulowy filar kadencji 2-5-1');
+  const fm6Chord = createChordDefinition('F', 'minor6', 'iv6', 'Melancholijny twist noir / Beatles cliché');
   const fs7Chord = createChordDefinition('F#', 'dom7', 'SubV', 'Substytut trytonowy');
   const bbChord = createChordDefinition('A#', 'major', 'bVII', 'Krok całotonowy – Epicki rock');
   const ebmChord = createChordDefinition('D#', 'minor', 'iii b', 'Akord obcy');
@@ -304,6 +385,30 @@ function createScreenshotStarterSteps(): BoardStep[] {
       fitTier: 'perfect',
       fitScore: 100,
       fitVerdict: 'Znakomity wybór! (100% dopasowania) – Perfekcyjne przygotowanie kadencji ii-V-I',
+    },
+    {
+      id: 'r4_dm7',
+      chord: dm7Chord,
+      degreeName: 'ii7 (D-moll z septymą – Dm7)',
+      moodLabel: 'Aksamitny standard jazzowy i neo-soul',
+      explanation: 'Dm7 (D-F-A-C) ma w sobie nutę C, tworząc miękkie, ciepłe spięcie z toniką.',
+      whyItWorks: 'Klasyczna, wyrafinowana alternatywa dla prostego D-moll.',
+      isRecommended: false,
+      fitTier: 'perfect',
+      fitScore: 98,
+      fitVerdict: 'Znakomity wybór! (98% dopasowania) – Jazzowo-soulowy Dm7',
+    },
+    {
+      id: 'r4_fm6',
+      chord: fm6Chord,
+      degreeName: 'iv6 (F-moll z sekstą wielką)',
+      moodLabel: 'Tajemniczy, wzruszający klimat kina noir',
+      explanation: 'Fm6 (F-As-C-D) zawiera sekstę D, która jest prymą Dm i płynnie wiąże się z C-dur.',
+      whyItWorks: 'Legendarny zabieg The Beatles, Davida Bowiego i muzyki filmowej.',
+      isRecommended: false,
+      fitTier: 'good',
+      fitScore: 86,
+      fitVerdict: 'Świetny, wyrafinowany wybór! (86% dopasowania) – Wzruszający Fm6',
     },
     {
       id: 'r4_bb',
@@ -348,21 +453,16 @@ function createScreenshotStarterSteps(): BoardStep[] {
   const { shuffledChoices: r3Shuffled, themeMap: r3Themes } = shuffleAndColorChoices(row3Choices);
   const { shuffledChoices: r4Shuffled, themeMap: r4Themes } = shuffleAndColorChoices(row4Choices);
 
-  const r1Target = r1Shuffled.find((c) => c.chord.symbol === 'C') || r1Shuffled[0];
-
   return [
     {
       stepIndex: 1,
       baseChord: cChord,
       choices: r1Shuffled,
       choiceThemeMap: r1Themes,
-      selectedChoice: r1Target,
-      selectedMidis: r1Target.chord.defaultNotes.map((n) => n.midi),
-      highlightMap: r1Target.chord.defaultNotes.reduce((acc, n) => {
-        acc[n.midi] = 'correct';
-        return acc;
-      }, {} as Record<number, 'correct'>),
-      isSolved: true,
+      selectedChoice: null,
+      selectedMidis: [],
+      highlightMap: {},
+      isSolved: false,
       showHint: false,
       expandedChoices: false,
     },
@@ -435,27 +535,22 @@ function buildStepsFromProgression(
         fitScore: 100,
         fitVerdict: 'Doskonałe dopasowanie! Kluczowy akord w wybranym schemacie',
       };
-      choices = [targetChoice, ...choices.slice(0, 3)];
+      choices = [targetChoice, ...choices.filter((c) => c.chord.symbol !== targetChord.symbol).slice(0, 5)];
+    } else {
+      choices = choices.slice(0, 6);
     }
 
     const { shuffledChoices, themeMap } = shuffleAndColorChoices(choices);
-    const isFirst = idx === 0;
-    const targetChoice = shuffledChoices.find((c) => c.chord.symbol === targetChord.symbol) || shuffledChoices[0];
 
     return {
       stepIndex: idx + 1,
       baseChord: targetChord,
       choices: shuffledChoices,
       choiceThemeMap: themeMap,
-      selectedChoice: isFirst ? targetChoice : null,
-      selectedMidis: isFirst ? targetChord.defaultNotes.map((n) => n.midi) : [],
-      highlightMap: isFirst
-        ? targetChord.defaultNotes.reduce((acc, n) => {
-            acc[n.midi] = 'correct';
-            return acc;
-          }, {} as Record<number, 'correct'>)
-        : {},
-      isSolved: isFirst,
+      selectedChoice: null,
+      selectedMidis: [],
+      highlightMap: {},
+      isSolved: false,
       showHint: false,
       expandedChoices: false,
     };
@@ -542,7 +637,9 @@ function buildStepsFromChordDefinitions(chords: ChordDefinition[]): BoardStep[] 
         fitScore: 100,
         fitVerdict: 'Znakomity wybór! (100% dopasowania) – Akord ze wzorca',
       };
-      choices = [targetChoice, ...choices.slice(0, 3)];
+      choices = [targetChoice, ...choices.filter((c) => c.chord.symbol !== targetChord.symbol).slice(0, 5)];
+    } else {
+      choices = choices.slice(0, 6);
     }
 
     const { shuffledChoices, themeMap } = shuffleAndColorChoices(choices);
@@ -569,6 +666,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   loadedKeyInfo,
   onClearLoadedProgression,
   onUpdateWorkshopResults,
+  onNavigateToLibrary,
 }) => {
   // Pre-generate steps (default 4 matching screenshot or loadedProgression if present)
   const [steps, setSteps] = useState<BoardStep[]>(() => {
@@ -577,6 +675,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     }
     return createScreenshotStarterSteps();
   });
+
 
   // When a new progression is loaded from Library or Sandbox, update the steps immediately
   // and smoothly scroll so that the first piano keyboard is centered in the viewport
@@ -1323,53 +1422,6 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   return (
     <div className="w-full max-w-md sm:max-w-lg mx-auto space-y-3.5">
-      {/* Prominent Active Tonality Banner */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30">
-            <Compass className="w-4 h-4 stroke-[2.5]" />
-            <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
-          </div>
-          {loadedKeyInfo?.progName && (
-            <div className="flex items-center gap-1 text-xs text-amber-200/90 font-medium">
-              <span className="text-slate-400 hidden xs:inline">Wzorzec:</span>
-              <span className="font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 max-w-[170px] truncate">
-                {loadedKeyInfo.progName}
-              </span>
-            </div>
-          )}
-          {loadedKeyInfo?.degrees && (
-            <div className="flex items-center gap-1 text-xs">
-              <span className="text-slate-400 hidden sm:inline text-[11px]">Progresja:</span>
-              <span className="font-mono font-bold text-white bg-slate-950 px-2 py-0.5 rounded-lg border border-amber-500/35 text-[11px] shadow-sm">
-                {loadedKeyInfo.degrees}
-              </span>
-            </div>
-          )}
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => scrollToFirstPianoKeyboard()}
-            className="px-2.5 py-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-            title="Przewiń widok tak aby pierwsze pianino znalazło się na środku ekranu"
-          >
-            <span>Wycentruj pianino #1</span>
-          </button>
-          {loadedProgression && onClearLoadedProgression && (
-            <button
-              type="button"
-              onClick={onClearLoadedProgression}
-              className="px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1"
-              title="Przywróć domyślne 4 akordy"
-            >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset</span>
-            </button>
-          )}
-        </div>
-      </div>
-
       {/* Top Header Controls Strip */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-2 pt-1 pb-2 border-b border-slate-800/80">
         <div className="flex items-center gap-2">
@@ -1643,6 +1695,62 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         </div>
       </div>
 
+      {/* Prominent Active Tonality & Progression Banner - directly above step 1 */}
+      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg">
+        <div className="flex items-center gap-2 flex-wrap">
+          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30">
+            <Compass className="w-4 h-4 stroke-[2.5]" />
+            <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
+          </div>
+          {loadedKeyInfo?.progName && (
+            <div className="flex items-center gap-1 text-xs text-amber-200/90 font-medium">
+              <span className="text-slate-400 hidden xs:inline">Wzorzec:</span>
+              {onNavigateToLibrary ? (
+                <button
+                  type="button"
+                  onClick={onNavigateToLibrary}
+                  className="font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/25 hover:border-amber-400/50 max-w-[170px] truncate cursor-pointer transition-all active:scale-95 text-left"
+                  title="Przejdź do tego wzorca w zakładce Wzorce"
+                >
+                  {loadedKeyInfo.progName}
+                </button>
+              ) : (
+                <span className="font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 max-w-[170px] truncate">
+                  {loadedKeyInfo.progName}
+                </span>
+              )}
+            </div>
+          )}
+          <div className="flex items-center gap-1 text-xs">
+            <span className="text-slate-400 hidden sm:inline text-[11px]">Progresja:</span>
+            <span className="font-mono font-bold text-white bg-slate-950 px-2 py-0.5 rounded-lg border border-amber-500/35 text-[11px] shadow-sm">
+              {loadedKeyInfo?.degrees || steps.map((s) => s.baseChord.functionDegree || (convention === 'polish' ? s.baseChord.polishSymbol : s.baseChord.symbol)).join(' – ')}
+            </span>
+          </div>
+        </div>
+        <div className="flex items-center gap-1.5">
+          <button
+            type="button"
+            onClick={() => scrollToFirstPianoKeyboard()}
+            className="px-2.5 py-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
+            title="Przewiń widok tak aby pierwsze pianino znalazło się na środku ekranu"
+          >
+            <span>Wycentruj pianino #1</span>
+          </button>
+          {loadedProgression && onClearLoadedProgression && (
+            <button
+              type="button"
+              onClick={onClearLoadedProgression}
+              className="px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+              title="Przywróć domyślne 4 akordy"
+            >
+              <RotateCcw className="w-3 h-3" />
+              <span>Reset</span>
+            </button>
+          )}
+        </div>
+      </div>
+
       {/* ======================================================== */}
       {/* THE EXACT STACKED SCREENSHOT LAYOUT                      */}
       {/* 4 RECTANGLES -> PIANO KEYBOARD -> REPEAT                 */}
@@ -1761,7 +1869,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
               {/* ROW 1 of Pair: Chord Choices (visible or hidden with keyboard feedback) */}
               {isStepChoicesVisible ? (
-                <div className="grid grid-cols-4 gap-2 sm:gap-2.5">
+                <div className="grid grid-cols-3 sm:grid-cols-6 gap-2 sm:gap-2.5">
                   {displayChoices.map((choice, colIdx) => {
                     const theme =
                       step.choiceThemeMap?.[choice.id] ||
@@ -1804,11 +1912,37 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                         </span>
 
                         {/* Small subtle degree / subtitle */}
-                        <span className="text-[9px] font-bold text-slate-900/70 tracking-tight uppercase mt-0.5 pointer-events-none">
+                        <span className="text-[9px] font-bold text-slate-900/70 tracking-tight uppercase mt-0.5 pointer-events-none truncate max-w-full px-1">
                           {choice.chord.quality === 'major'
                             ? 'dur'
                             : choice.chord.quality === 'minor'
                             ? 'moll'
+                            : choice.chord.quality === 'major6'
+                            ? '6'
+                            : choice.chord.quality === 'minor6'
+                            ? 'm6'
+                            : choice.chord.quality === 'diminished'
+                            ? 'dim'
+                            : choice.chord.quality === 'dim7'
+                            ? 'dim7'
+                            : choice.chord.quality === 'm7b5'
+                            ? 'm7b5'
+                            : choice.chord.quality === 'augmented'
+                            ? 'aug'
+                            : choice.chord.quality === 'dom7'
+                            ? '7'
+                            : choice.chord.quality === 'maj7'
+                            ? 'maj7'
+                            : choice.chord.quality === 'min7'
+                            ? 'm7'
+                            : choice.chord.quality === 'sus2'
+                            ? 'sus2'
+                            : choice.chord.quality === 'sus4'
+                            ? 'sus4'
+                            : choice.chord.quality === 'dom7sus4'
+                            ? '7sus4'
+                            : choice.chord.quality === 'add9'
+                            ? 'add9'
                             : choice.chord.quality}
                         </span>
 
@@ -1936,6 +2070,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                 className="mt-2"
                 id={step.stepIndex === 1 ? 'first-piano-keyboard-container' : `step_${step.stepIndex}_piano_container`}
                 data-step-index={step.stepIndex}
+                data-first-piano={step.stepIndex === 1 ? 'true' : undefined}
               >
                 <PianoKeyboard
                   idPrefix={`step_${step.stepIndex}_piano`}

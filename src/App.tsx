@@ -1,4 +1,4 @@
-import React, { useState, useCallback } from 'react';
+import React, { useState, useCallback, useEffect } from 'react';
 import {
   ChordDefinition,
   QuizChoice,
@@ -20,7 +20,7 @@ import { TheoryModal } from './components/TheoryModal';
 import { CircleOfFifths } from './components/CircleOfFifths';
 import { ProgressionLibrary, LoadedProgressionMetadata } from './components/ProgressionLibrary';
 import { FreePlaySandbox } from './components/FreePlaySandbox';
-import { scrollToFirstPianoKeyboard } from './utils/scrollHelper';
+import { scrollToFirstPianoKeyboard, scrollToLoadedProgressionCard } from './utils/scrollHelper';
 import {
   Sparkles,
   Music,
@@ -85,12 +85,19 @@ export default function App() {
     scrollToFirstPianoKeyboard();
   };
 
+  const handleViewChange = useCallback((view: 'workshop' | 'library' | 'circle' | 'sandbox') => {
+    setActiveView(view);
+    if (view === 'library') {
+      scrollToLoadedProgressionCard(loadedProgressionId);
+    }
+  }, [loadedProgressionId]);
+
   return (
     <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950">
       {/* Top Bar Header */}
       <Header
         activeView={activeView}
-        onViewChange={setActiveView}
+        onViewChange={handleViewChange}
         onOpenTheory={() => setIsTheoryOpen(true)}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
@@ -166,6 +173,7 @@ export default function App() {
               setWorkshopResults({});
             }}
             onUpdateWorkshopResults={handleUpdateWorkshopResults}
+            onNavigateToLibrary={() => handleViewChange('library')}
           />
         </div>
 
@@ -177,6 +185,7 @@ export default function App() {
             workshopResults={workshopResults}
             loadedProgressionId={loadedProgressionId}
             onClearWorkshopResults={handleClearWorkshopResults}
+            isActiveView={activeView === 'library'}
           />
         </div>
 
@@ -218,14 +227,28 @@ export default function App() {
             </button>
             <button
               type="button"
-              onClick={() => setActiveView('circle')}
+              onClick={() => handleViewChange('workshop')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              Ćwiczenia
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewChange('library')}
+              className="hover:text-amber-400 transition-colors cursor-pointer"
+            >
+              Wzorce
+            </button>
+            <button
+              type="button"
+              onClick={() => handleViewChange('circle')}
               className="hover:text-amber-400 transition-colors cursor-pointer"
             >
               Koło Kwintowe
             </button>
             <button
               type="button"
-              onClick={() => setActiveView('sandbox')}
+              onClick={() => handleViewChange('sandbox')}
               className="hover:text-amber-400 transition-colors cursor-pointer"
             >
               Swobodne Pianino
