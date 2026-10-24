@@ -43,7 +43,7 @@ import {
   Pin,
   PinOff,
 } from 'lucide-react';
-import { LoadedProgressionMetadata } from './ProgressionLibrary';
+import { LoadedProgressionMetadata, formatDegreeLabel } from './ProgressionLibrary';
 import { scrollToTonalityProgressionBar } from '../utils/scrollHelper';
 
 export interface CardTheme {
@@ -661,6 +661,44 @@ function buildStepsFromChordDefinitions(chords: ChordDefinition[]): BoardStep[] 
   });
 }
 
+// Helper to determine if a progression step has been correctly chosen or played
+export function isStepCorrect(step: BoardStep): boolean {
+  const targetChord = step.baseChord;
+
+  // 1. If user selected a choice, check if it matches the target chord
+  if (step.selectedChoice) {
+    const choice = step.selectedChoice;
+    const matchesTarget =
+      choice.chord.root === targetChord.root && choice.chord.quality === targetChord.quality;
+    if (matchesTarget || choice.fitTier === 'perfect' || choice.fitScore >= 80) {
+      return true;
+    }
+  }
+
+  // 2. If marked as solved
+  if (step.isSolved) {
+    return true;
+  }
+
+  // 3. If played on the keyboard and pitch classes match target
+  if (step.selectedMidis.length > 0) {
+    const targetPitchClasses = Array.from(
+      new Set(targetChord.defaultNotes.map((n) => n.midi % 12))
+    ).sort((a, b) => a - b);
+    const playedPitchClasses = Array.from(
+      new Set(step.selectedMidis.map((m) => m % 12))
+    ).sort((a, b) => a - b);
+    if (
+      playedPitchClasses.length === targetPitchClasses.length &&
+      playedPitchClasses.every((p, i) => p === targetPitchClasses[i])
+    ) {
+      return true;
+    }
+  }
+
+  return false;
+}
+
 export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProps> = ({
   convention,
   onOpenTheory,
@@ -726,7 +764,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         step.selectedChoice!.chord.root === targetChord.root &&
         step.selectedChoice!.chord.quality === targetChord.quality;
 
-      const isCorrect = pitchClassesMatch || (step.isSolved && (choiceMatchesBase || pitchClassesMatch));
+      const isCorrect = isStepCorrect(step);
 
       const playedNoteLabels = Array.from(
         new Set(step.selectedMidis.map((m) => getNoteLabel(NOTE_NAMES[m % 12], convention)))
@@ -908,12 +946,17 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     setSteps((prev) =>
       prev.map((s) => {
         if (s.stepIndex !== stepIdx) return s;
+        const targetChord = s.baseChord;
+        const matchesTarget =
+          (choice.chord.root === targetChord.root && choice.chord.quality === targetChord.quality) ||
+          choice.fitTier === 'perfect' ||
+          choice.fitScore >= 80;
         return {
           ...s,
           selectedChoice: choice,
           selectedMidis: [],
           highlightMap: {},
-          isSolved: false,
+          isSolved: matchesTarget,
           showHint: false,
         };
       })
@@ -1457,6 +1500,85 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     }
   };
 
+  // User Request: In the progression bar (pinned or unpinned), chords that are correctly selected turn font color from white to green
+  const renderProgressionDegreeList = () => {
+    // 1. If loadedKeyInfo has section division (e.g., "Zwrotka: ... | Refren: ...")
+    if (loadedKeyInfo?.degrees && (loadedKeyInfo.degrees.includes('|') || loadedKeyInfo.degrees.includes(':'))) {
+      const sections = loadedKeyInfo.degrees.split('|').map((sec) => sec.trim());
+      let overallStepIdx = 0;
+
+      return sections.map((sec, secIdx) => {
+        const colonIdx = sec.indexOf(':');
+        const secTitle = colonIdx !== -1 ? sec.slice(0, colonIdx + 1).trim() : '';
+        const formulaPart = colonIdx !== -1 ? sec.slice(colonIdx + 1).trim() : sec;
+        const degreeTokens = formulaPart.split(/[-–—]/).map((d) => d.trim()).filter(Boolean);
+
+        return (
+          <div key={`sec_${secIdx}`} className="inline-flex items-center gap-1 flex-wrap">
+            {secIdx > 0 && <span className="text-slate-600 mx-1 font-normal select-none">|</span>}
+            {secTitle && <span className="text-amber-400/90 font-semibold text-[10px] select-none">{secTitle}</span>}
+            {degreeTokens.map((degToken, dIdx) => {
+              const currentStep = steps[overallStepIdx];
+              overallStepIdx++;
+              const isCorrect = currentStep ? isStepCorrect(currentStep) : false;
+
+              return (
+                <React.Fragment key={`sec_step_${secIdx}_${dIdx}`}>
+                  {dIdx > 0 && <span className="text-slate-600 font-normal select-none">–</span>}
+                  <span
+                    className={`transition-colors duration-200 select-none ${
+                      isCorrect
+                        ? 'text-emerald-400 font-black drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]'
+                        : 'text-white font-bold'
+                    }`}
+                    title={
+                      currentStep
+                        ? `Krok ${currentStep.stepIndex}: ${convention === 'polish' ? currentStep.baseChord.polishSymbol : currentStep.baseChord.symbol}${isCorrect ? ' (Zaliczony! ✓)' : ''}`
+                        : degToken
+                    }
+                  >
+                    {degToken}
+                  </span>
+                </React.Fragment>
+              );
+            })}
+          </div>
+        );
+      });
+    }
+
+    // 2. Standard progression list: either from loadedKeyInfo.degrees ("I – vi – IV – V") or steps directly
+    const rawTokens = loadedKeyInfo?.degrees
+      ? loadedKeyInfo.degrees.split(/[-–—]/).map((d) => d.trim()).filter(Boolean)
+      : null;
+
+    const useLoadedTokens = rawTokens && rawTokens.length === steps.length;
+
+    return steps.map((step, idx) => {
+      const isCorrect = isStepCorrect(step);
+      const label = useLoadedTokens
+        ? rawTokens[idx]
+        : (step.baseChord.functionDegree ? formatDegreeLabel(step.baseChord.functionDegree) : '') ||
+          (convention === 'polish' ? step.baseChord.polishSymbol : step.baseChord.symbol);
+
+      return (
+        <React.Fragment key={`prog_item_${step.stepIndex}`}>
+          {idx > 0 && <span className="text-slate-600 font-normal select-none">–</span>}
+          <span
+            className={`transition-colors duration-200 select-none ${
+              isCorrect
+                ? 'text-emerald-400 font-black drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]'
+                : 'text-white font-bold'
+            }`}
+            title={`Krok ${step.stepIndex}: ${convention === 'polish' ? step.baseChord.polishSymbol : step.baseChord.symbol}${isCorrect ? ' (Zaliczony! ✓)' : ''}`}
+          >
+            {label}
+          </span>
+        </React.Fragment>
+      );
+    });
+  };
+
   return (
     <div className="w-full max-w-md sm:max-w-lg mx-auto space-y-3.5">
       {/* Top Header Controls Strip */}
@@ -1796,11 +1918,11 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           </div>
         </div>
 
-        {/* ROW 2: Complete Progression Display without truncation */}
+        {/* ROW 2: Complete Progression Display with individual chord highlight */}
         <div className="flex items-start gap-1.5 text-xs min-w-0">
           <span className="text-slate-400 text-[11px] shrink-0 font-semibold pt-0.5">Progresja:</span>
-          <div className="font-mono font-bold text-white bg-slate-950 px-2.5 py-1 rounded-lg border border-amber-500/35 text-[11px] sm:text-xs shadow-sm break-words whitespace-normal leading-relaxed w-full">
-            {loadedKeyInfo?.degrees || steps.map((s) => s.baseChord.functionDegree || (convention === 'polish' ? s.baseChord.polishSymbol : s.baseChord.symbol)).join(' – ')}
+          <div className="font-mono bg-slate-950 px-2.5 py-1 rounded-lg border border-amber-500/35 text-[11px] sm:text-xs shadow-sm break-words whitespace-normal leading-relaxed w-full flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            {renderProgressionDegreeList()}
           </div>
         </div>
       </div>
