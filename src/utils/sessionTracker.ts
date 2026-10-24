@@ -1,17 +1,43 @@
-import { SessionHistoryEntry } from '../components/SessionHistoryModal';
+export interface ActivityHistoryEntry {
+  id: string;
+  type: 'app_start' | 'pattern_load';
+  title: string;
+  keyName?: string;
+  formula?: string;
+  timestamp: number;
+  timeString: string;
+  dateString: string;
+  isCurrentSession?: boolean;
+}
 
-const HISTORY_STORAGE_KEY = 'harmonix_session_start_history_v1';
+const HISTORY_STORAGE_KEY = 'harmonix_app_activity_history_v2';
 const SESSION_TOKEN_KEY = 'harmonix_session_active_token';
-const CLOSED_TIME_STORAGE_KEY = 'harmonix_last_closed_time';
+const MAX_HISTORY_ITEMS = 50;
 
-export function getSessionStartHistory(): SessionHistoryEntry[] {
+function formatTime(date: Date): string {
+  return date.toLocaleTimeString('pl-PL', {
+    hour: '2-digit',
+    minute: '2-digit',
+    second: '2-digit',
+  });
+}
+
+function formatDate(date: Date): string {
+  return date.toLocaleDateString('pl-PL', {
+    day: '2-digit',
+    month: '2-digit',
+    year: 'numeric',
+  });
+}
+
+export function getActivityHistory(): ActivityHistoryEntry[] {
   try {
     if (typeof window === 'undefined' || !window.localStorage) return [];
     const raw = localStorage.getItem(HISTORY_STORAGE_KEY);
     if (!raw) return [];
     const parsed = JSON.parse(raw);
     if (Array.isArray(parsed)) {
-      return parsed.slice(0, 10);
+      return parsed.slice(0, MAX_HISTORY_ITEMS);
     }
   } catch {
     // ignore
@@ -19,25 +45,33 @@ export function getSessionStartHistory(): SessionHistoryEntry[] {
   return [];
 }
 
-export function recordSessionStart(): { current: SessionHistoryEntry; history: SessionHistoryEntry[] } {
-  const now = new Date();
-  const timeString = now.toLocaleTimeString('pl-PL', {
-    hour: '2-digit',
-    minute: '2-digit',
-    second: '2-digit',
-  });
-  const dateString = now.toLocaleDateString('pl-PL', {
-    day: '2-digit',
-    month: '2-digit',
-    year: 'numeric',
-  });
+function saveActivityHistory(entries: ActivityHistoryEntry[]): void {
+  try {
+    if (typeof window !== 'undefined' && window.localStorage) {
+      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(entries.slice(0, MAX_HISTORY_ITEMS)));
+      window.dispatchEvent(new CustomEvent('harmonix:activity-updated'));
+    }
+  } catch {
+    // ignore
+  }
+}
 
-  const fallback: SessionHistoryEntry = {
-    id: `sess_${now.getTime()}`,
+/**
+ * Records the application start timestamp, ensuring at least 30+ items are kept in localStorage across sessions.
+ */
+export function recordSessionStart(): { current: ActivityHistoryEntry; history: ActivityHistoryEntry[] } {
+  const now = new Date();
+  const timeString = formatTime(now);
+  const dateString = formatDate(now);
+
+  const fallback: ActivityHistoryEntry = {
+    id: `start_${now.getTime()}`,
+    type: 'app_start',
+    title: 'Uruchomienie aplikacji',
     timestamp: now.getTime(),
     timeString,
     dateString,
-    isCurrent: true,
+    isCurrentSession: true,
   };
 
   try {
@@ -46,18 +80,18 @@ export function recordSessionStart(): { current: SessionHistoryEntry; history: S
     }
 
     const sessionToken = typeof sessionStorage !== 'undefined' ? sessionStorage.getItem(SESSION_TOKEN_KEY) : null;
-    const existing = getSessionStartHistory();
+    const existing = getActivityHistory();
 
     if (sessionToken) {
       const foundIdx = existing.findIndex((e) => e.id === sessionToken);
       if (foundIdx !== -1) {
-        const marked = existing.map((e, idx) => ({ ...e, isCurrent: idx === foundIdx }));
+        const marked = existing.map((e, idx) => ({ ...e, isCurrentSession: idx === foundIdx }));
         return { current: marked[foundIdx], history: marked };
       }
     }
 
-    // New unique session
-    const newId = `sess_${now.getTime()}_${Math.random().toString(36).slice(2, 6)}`;
+    // New unique app launch
+    const newId = `start_${now.getTime()}_${Math.random().toString(36).slice(2, 6)}`;
     if (typeof sessionStorage !== 'undefined') {
       try {
         sessionStorage.setItem(SESSION_TOKEN_KEY, newId);
@@ -66,16 +100,18 @@ export function recordSessionStart(): { current: SessionHistoryEntry; history: S
       }
     }
 
-    const current: SessionHistoryEntry = {
+    const current: ActivityHistoryEntry = {
       id: newId,
+      type: 'app_start',
+      title: 'Uruchomienie aplikacji',
       timestamp: now.getTime(),
       timeString,
       dateString,
-      isCurrent: true,
+      isCurrentSession: true,
     };
 
-    const updated = [current, ...existing.map((e) => ({ ...e, isCurrent: false }))].slice(0, 10);
-    localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(updated));
+    const updated = [current, ...existing.map((e) => ({ ...e, isCurrentSession: false }))].slice(0, MAX_HISTORY_ITEMS);
+    saveActivityHistory(updated);
 
     return { current, history: updated };
   } catch {
@@ -83,43 +119,40 @@ export function recordSessionStart(): { current: SessionHistoryEntry; history: S
   }
 }
 
-export function clearPreviousSessionHistory(currentSession: SessionHistoryEntry): SessionHistoryEntry[] {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const onlyCurrent = [currentSession];
-      localStorage.setItem(HISTORY_STORAGE_KEY, JSON.stringify(onlyCurrent));
-      return onlyCurrent;
-    }
-  } catch {
-    // ignore
-  }
-  return [currentSession];
+/**
+ * Records whenever a pattern is loaded into the workshop.
+ */
+export function recordPatternLoad(name: string, keyName?: string, formula?: string): ActivityHistoryEntry[] {
+  const now = new Date();
+  const timeString = formatTime(now);
+  const dateString = formatDate(now);
+
+  const newEntry: ActivityHistoryEntry = {
+    id: `load_${now.getTime()}_${Math.random().toString(36).slice(2, 6)}`,
+    type: 'pattern_load',
+    title: name || 'Załadowano wzorzec',
+    keyName,
+    formula,
+    timestamp: now.getTime(),
+    timeString,
+    dateString,
+    isCurrentSession: true,
+  };
+
+  const existing = getActivityHistory();
+  const updated = [newEntry, ...existing].slice(0, MAX_HISTORY_ITEMS);
+  saveActivityHistory(updated);
+  return updated;
 }
 
-export function getLastClosedTime(): string {
+export function clearActivityHistory(): ActivityHistoryEntry[] {
   try {
     if (typeof window !== 'undefined' && window.localStorage) {
-      return localStorage.getItem(CLOSED_TIME_STORAGE_KEY) || '';
+      localStorage.removeItem(HISTORY_STORAGE_KEY);
+      window.dispatchEvent(new CustomEvent('harmonix:activity-updated'));
     }
   } catch {
     // ignore
   }
-  return '';
-}
-
-export function recordCurrentClosedTime(): void {
-  try {
-    if (typeof window !== 'undefined' && window.localStorage) {
-      const now = new Date();
-      const timeStr = now.toLocaleTimeString('pl-PL', {
-        hour: '2-digit',
-        minute: '2-digit',
-        second: '2-digit',
-      });
-      const dateStr = now.toLocaleDateString('pl-PL');
-      localStorage.setItem(CLOSED_TIME_STORAGE_KEY, `${timeStr} (${dateStr})`);
-    }
-  } catch {
-    // ignore
-  }
+  return [];
 }

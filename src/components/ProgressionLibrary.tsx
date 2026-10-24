@@ -314,8 +314,9 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   // Card key picker popover open state
   const [openCardKeyPickerId, setOpenCardKeyPickerId] = useState<string | null>(null);
 
-  // Active genre filter & search query (persisted)
+  // Active genre filter, form type filter & search query (persisted)
   const [selectedGenre, setSelectedGenre] = useState<string>(() => stored.selectedGenre || 'all');
+  const [selectedType, setSelectedType] = useState<ProgressionFormType>(() => stored.selectedType || 'all');
   const [searchQuery, setSearchQuery] = useState<string>(() => stored.searchQuery || '');
 
   // Track the ID of the progression that was loaded into the workshop
@@ -364,12 +365,13 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       globalKeyRoot,
       globalKeyMode,
       selectedGenre,
+      selectedType,
       searchQuery,
       cardKeyOverrides,
       revealedCardIds: Array.from(revealedCardIds),
       lastLoadedProgressionId: lastLoadedProgressionId || undefined,
     });
-  }, [globalKeyRoot, globalKeyMode, selectedGenre, searchQuery, cardKeyOverrides, revealedCardIds, lastLoadedProgressionId]);
+  }, [globalKeyRoot, globalKeyMode, selectedGenre, selectedType, searchQuery, cardKeyOverrides, revealedCardIds, lastLoadedProgressionId]);
 
   const toggleCardChords = (progId: string) => {
     setRevealedCardIds((prev) => {
@@ -589,6 +591,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       if (selectedGenre !== 'all' && !prog.genre.toLowerCase().includes(selectedGenre.toLowerCase())) {
         return false;
       }
+      if (selectedType === 'progression' && isProgressionFullSong(prog)) {
+        return false;
+      }
+      if (selectedType === 'song' && !isProgressionFullSong(prog)) {
+        return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = prog.name.toLowerCase().includes(q);
@@ -605,6 +613,13 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       return true;
     });
 
+    // Poszereguj wzorce od najprostszych do najbardziej skomplikowanych (User Request)
+    list.sort((a, b) => {
+      const diffA = calculateProgressionDifficulty(a);
+      const diffB = calculateProgressionDifficulty(b);
+      return diffA.score - diffB.score;
+    });
+
     // Jeśli wzorzec został załadowany do warsztatu, przesuń go na pierwsze miejsce (#1) w otwartym gatunku/liście
     if (lastLoadedProgressionId) {
       const idx = list.findIndex((p) => p.id === lastLoadedProgressionId);
@@ -615,7 +630,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     }
 
     return list;
-  }, [selectedGenre, searchQuery, lastLoadedProgressionId]);
+  }, [selectedGenre, selectedType, searchQuery, lastLoadedProgressionId]);
 
   // Popular key presets
   const popularMajorKeys: NoteName[] = ['C', 'G', 'D', 'F', 'A', 'E', 'B'];
@@ -873,6 +888,44 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
         ))}
       </div>
 
+      {/* 2nd Row: Form Filter Pills (Krótkie progresje vs Całe utwory) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+        <span className="text-slate-400 font-medium mr-1">Forma utworu:</span>
+        <button
+          type="button"
+          onClick={() => setSelectedType('all')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 ${
+            selectedType === 'all'
+              ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+          }`}
+        >
+          Wszystkie formy
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedType('progression')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 ${
+            selectedType === 'progression'
+              ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+          }`}
+        >
+          Krótkie progresje (4–8 akordów)
+        </button>
+        <button
+          type="button"
+          onClick={() => setSelectedType('song')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 ${
+            selectedType === 'song'
+              ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+          }`}
+        >
+          Całe utwory (Zwrotka / Refren / Mostek)
+        </button>
+      </div>
+
       {/* Progressions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredProgressions.map((prog) => {
@@ -883,6 +936,8 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
           const isPickerOpen = openCardKeyPickerId === prog.id;
           const isLastLoaded = lastLoadedProgressionId === prog.id;
           const formulaInfo = getProgressionRomanFormula(prog);
+          const diff = calculateProgressionDifficulty(prog);
+          const isFullSong = isProgressionFullSong(prog);
 
           const isCurrentLoadedProg = prog.id === (loadedProgressionId || lastLoadedProgressionId);
           const relevantResults = isCurrentLoadedProg ? workshopResults || {} : {};
@@ -995,6 +1050,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
                       )}
                       <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                         {prog.genre}
+                      </span>
+                      <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full border ${diff.badgeColor}`}>
+                        {diff.label}
+                      </span>
+                      <span className="text-[10px] font-semibold text-slate-300 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60">
+                        {isFullSong ? 'Cały utwór' : 'Krótka progresja'}
                       </span>
                       <span className="text-[10px] text-slate-400 bg-slate-800/80 px-2 py-0.5 rounded-full border border-slate-700/60">
                         Oryginał: {prog.key}

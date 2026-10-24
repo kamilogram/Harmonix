@@ -40,9 +40,11 @@ import {
   Eye,
   EyeOff,
   Compass,
+  Pin,
+  PinOff,
 } from 'lucide-react';
 import { LoadedProgressionMetadata } from './ProgressionLibrary';
-import { scrollToFirstPianoKeyboard } from '../utils/scrollHelper';
+import { scrollToTonalityProgressionBar } from '../utils/scrollHelper';
 
 export interface CardTheme {
   id: string;
@@ -678,11 +680,11 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
 
   // When a new progression is loaded from Library or Sandbox, update the steps immediately
-  // and smoothly scroll so that the first piano keyboard is centered in the viewport
+  // and smoothly scroll so that the tonality and progression bar is positioned at the top of the viewport
   useEffect(() => {
     if (loadedProgression && loadedProgression.length > 0) {
       setSteps(buildStepsFromChordDefinitions(loadedProgression));
-      scrollToFirstPianoKeyboard();
+      scrollToTonalityProgressionBar();
     }
   }, [loadedProgression]);
 
@@ -771,6 +773,41 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       const next = new Set(prev);
       if (next.has(stepIdx)) next.delete(stepIdx);
       else next.add(stepIdx);
+      return next;
+    });
+  };
+
+  // User request: Pin tonality & progression bar right below navigation tabs
+  const [isTonalityBarPinned, setIsTonalityBarPinned] = useState<boolean>(() => {
+    try {
+      return localStorage.getItem('harmonix_tonality_bar_pinned') === 'true';
+    } catch {
+      return false;
+    }
+  });
+
+  const handleTogglePinTonalityBar = () => {
+    setIsTonalityBarPinned((prev) => {
+      const next = !prev;
+      try {
+        localStorage.setItem('harmonix_tonality_bar_pinned', String(next));
+      } catch {}
+
+      if (next) {
+        // When user turns on pinning, smoothly scroll so it docks right under the header
+        setTimeout(() => {
+          const el = document.getElementById('workshop-tonality-progression-bar');
+          if (el) {
+            const headerEl = document.querySelector('header');
+            const headerHeight = headerEl ? headerEl.offsetHeight : 90;
+            const targetY = window.scrollY + el.getBoundingClientRect().top - headerHeight - 4;
+            window.scrollTo({
+              top: Math.max(0, targetY),
+              behavior: 'smooth',
+            });
+          }
+        }, 50);
+      }
       return next;
     });
   };
@@ -1695,59 +1732,76 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         </div>
       </div>
 
-      {/* Prominent Active Tonality & Progression Banner - directly above step 1 */}
-      <div className="flex flex-wrap items-center justify-between gap-2 px-3.5 py-2.5 rounded-2xl bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg">
-        <div className="flex items-center gap-2 flex-wrap">
-          <div className="flex items-center gap-1.5 px-3 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30">
-            <Compass className="w-4 h-4 stroke-[2.5]" />
-            <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
-          </div>
-          {loadedKeyInfo?.progName && (
-            <div className="flex items-center gap-1 text-xs text-amber-200/90 font-medium">
-              <span className="text-slate-400 hidden xs:inline">Wzorzec:</span>
-              {onNavigateToLibrary ? (
-                <button
-                  type="button"
-                  onClick={onNavigateToLibrary}
-                  className="font-bold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 px-2 py-0.5 rounded-lg border border-amber-500/25 hover:border-amber-400/50 max-w-[170px] truncate cursor-pointer transition-all active:scale-95 text-left"
-                  title="Przejdź do tego wzorca w zakładce Wzorce"
-                >
-                  {loadedKeyInfo.progName}
-                </button>
-              ) : (
-                <span className="font-bold text-amber-300 bg-amber-500/10 px-2 py-0.5 rounded-lg border border-amber-500/20 max-w-[170px] truncate">
-                  {loadedKeyInfo.progName}
-                </span>
-              )}
+      {/* Prominent Active Tonality & Progression Banner - exactly 2 clean rows */}
+      <div
+        id="workshop-tonality-progression-bar"
+        data-tonality-bar="true"
+        style={{
+          position: isTonalityBarPinned ? 'sticky' : undefined,
+          top: isTonalityBarPinned ? 'var(--app-header-height, 90px)' : undefined,
+          zIndex: isTonalityBarPinned ? 35 : undefined,
+          scrollMarginTop: 'calc(var(--app-header-height, 90px) + 14px)',
+        }}
+        className={`flex flex-col gap-1.5 px-3.5 py-2.5 rounded-2xl transition-all duration-200 ${
+          isTonalityBarPinned
+            ? 'shadow-2xl bg-slate-900/98 backdrop-blur-md border-2 border-amber-400 ring-2 ring-amber-400/40'
+            : 'bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg'
+        }`}
+      >
+        {/* ROW 1: Tonality + Pin/Unpin Button right next to it, and quick actions on the right */}
+        <div className="flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2 min-w-0">
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30 shrink-0">
+              <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
+              <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
             </div>
-          )}
-          <div className="flex items-center gap-1 text-xs">
-            <span className="text-slate-400 hidden sm:inline text-[11px]">Progresja:</span>
-            <span className="font-mono font-bold text-white bg-slate-950 px-2 py-0.5 rounded-lg border border-amber-500/35 text-[11px] shadow-sm">
-              {loadedKeyInfo?.degrees || steps.map((s) => s.baseChord.functionDegree || (convention === 'polish' ? s.baseChord.polishSymbol : s.baseChord.symbol)).join(' – ')}
-            </span>
-          </div>
-        </div>
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => scrollToFirstPianoKeyboard()}
-            className="px-2.5 py-1 text-[11px] font-semibold text-amber-300 hover:text-amber-200 bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1 active:scale-95"
-            title="Przewiń widok tak aby pierwsze pianino znalazło się na środku ekranu"
-          >
-            <span>Wycentruj pianino #1</span>
-          </button>
-          {loadedProgression && onClearLoadedProgression && (
+
+            {/* User Request 2: Button 'przypnij / odepnij' directly next to the tonality label */}
             <button
               type="button"
-              onClick={onClearLoadedProgression}
-              className="px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1"
-              title="Przywróć domyślne 4 akordy"
+              onClick={handleTogglePinTonalityBar}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
+                isTonalityBarPinned
+                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/25 font-black'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80'
+              }`}
+              title={isTonalityBarPinned ? 'Odepnij belkę tonacji (drugie naciśnięcie odpina)' : 'Przypnij belkę tonacji pod kartami nawigacji podczas scrollowania'}
             >
-              <RotateCcw className="w-3 h-3" />
-              <span>Reset</span>
+              {isTonalityBarPinned ? (
+                <>
+                  <PinOff className="w-3.5 h-3.5" />
+                  <span>Odepnij</span>
+                </>
+              ) : (
+                <>
+                  <Pin className="w-3.5 h-3.5 text-amber-400" />
+                  <span>Przypnij</span>
+                </>
+              )}
             </button>
-          )}
+          </div>
+
+          <div className="flex items-center gap-1.5 shrink-0">
+            {loadedProgression && onClearLoadedProgression && (
+              <button
+                type="button"
+                onClick={onClearLoadedProgression}
+                className="px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1"
+                title="Przywróć domyślne 4 akordy"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Reset</span>
+              </button>
+            )}
+          </div>
+        </div>
+
+        {/* ROW 2: Complete Progression Display without truncation */}
+        <div className="flex items-start gap-1.5 text-xs min-w-0">
+          <span className="text-slate-400 text-[11px] shrink-0 font-semibold pt-0.5">Progresja:</span>
+          <div className="font-mono font-bold text-white bg-slate-950 px-2.5 py-1 rounded-lg border border-amber-500/35 text-[11px] sm:text-xs shadow-sm break-words whitespace-normal leading-relaxed w-full">
+            {loadedKeyInfo?.degrees || steps.map((s) => s.baseChord.functionDegree || (convention === 'polish' ? s.baseChord.polishSymbol : s.baseChord.symbol)).join(' – ')}
+          </div>
         </div>
       </div>
 
@@ -1755,7 +1809,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       {/* THE EXACT STACKED SCREENSHOT LAYOUT                      */}
       {/* 4 RECTANGLES -> PIANO KEYBOARD -> REPEAT                 */}
       {/* ======================================================== */}
-      <div className="space-y-4">
+      <div className={hideChordChoices ? 'space-y-2 sm:space-y-2.5' : 'space-y-4'}>
         {steps.map((step) => {
           const isActivePlayback = activePlaybackStep === step.stepIndex;
           const displayChoices = step.expandedChoices
@@ -1766,14 +1820,16 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           return (
             <div
               key={`screenshot_step_${step.stepIndex}`}
-              className={`rounded-2xl transition-all duration-300 p-2 sm:p-2.5 ${
+              className={`rounded-2xl transition-all duration-300 ${
+                !isStepChoicesVisible ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'
+              } ${
                 isActivePlayback
                   ? 'bg-amber-500/10 ring-2 ring-amber-400/50 shadow-xl'
                   : 'bg-[#0f1422]/90 border border-slate-800/90 shadow-xl'
               }`}
             >
               {/* Step Header with index, delete and options toggle */}
-              <div className="flex items-center justify-between px-1 mb-1.5 text-xs">
+              <div className="flex items-center justify-between px-1 mb-1 text-xs">
                 <div className="flex items-center gap-1.5">
                   <span className="w-5 h-5 rounded-full bg-slate-800 text-amber-400 font-black text-[11px] flex items-center justify-center border border-slate-700 shadow-sm">
                     {step.stepIndex}
@@ -1956,38 +2012,12 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                     );
                   })}
                 </div>
-              ) : (
-                /* When chord rows are hidden, show prompt banner if not yet answered */
-                !step.selectedChoice && (
-                  <div className="py-2.5 px-3 rounded-2xl bg-slate-900/60 border border-dashed border-slate-800 text-xs text-slate-300 flex items-center justify-between gap-2 shadow-inner">
-                    <div className="flex items-center gap-2">
-                      <EyeOff className="w-4 h-4 text-amber-400 shrink-0" />
-                      <span>
-                        <strong>Podpowiedzi ukryte:</strong> Zagraj akord na poniższej klawiaturze – sprawdzimy, czy pasuje do progresji!
-                      </span>
-                    </div>
-                    <button
-                      type="button"
-                      onClick={() => handleToggleStepPeek(step.stepIndex)}
-                      className="px-2 py-1 text-[10px] font-bold text-amber-400 hover:text-amber-300 bg-amber-400/10 hover:bg-amber-400/20 rounded-lg transition-colors cursor-pointer shrink-0"
-                    >
-                      Pokaż kafelki
-                    </button>
-                  </div>
-                )
-              )}
+              ) : null}
 
-              {/* Test Result Verdict Strip - ALWAYS visible when an option is selected or played from keyboard */}
-              {step.selectedChoice && (
+              {/* Test Result Verdict Strip - ONLY shown when chord choices are visible, suppressed in hidden mode to prevent keyboard jumping */}
+              {isStepChoicesVisible && step.selectedChoice && (
                 <div className="mt-2 px-2.5 py-1.5 rounded-xl bg-slate-950/80 border border-slate-800/80 text-xs flex flex-col sm:flex-row sm:items-center justify-between gap-1.5 animate-in fade-in duration-150">
                   <div className="flex items-center gap-2 flex-wrap">
-                    {!isStepChoicesVisible && (
-                      <span className="px-2 py-0.5 rounded-full bg-emerald-500/20 text-emerald-300 border border-emerald-500/30 text-[10px] font-bold flex items-center gap-1 shrink-0">
-                        <Check className="w-3 h-3 stroke-[3]" />
-                        Zaliczono z klawiatury!
-                      </span>
-                    )}
-
                     {step.selectedChoice.fitTier === 'perfect' && (
                       <span className="text-emerald-400 font-bold flex items-center gap-1">
                         <Award className="w-3.5 h-3.5" />
@@ -2051,23 +2081,13 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                     >
                       Opis i teoria
                     </button>
-
-                    {!isStepChoicesVisible && (
-                      <button
-                        type="button"
-                        onClick={() => handleToggleStepPeek(step.stepIndex)}
-                        className="px-2 py-0.5 text-[10px] font-semibold text-slate-400 hover:text-slate-200 bg-slate-800/80 rounded transition-colors cursor-pointer"
-                      >
-                        Pokaż kafelki
-                      </button>
-                    )}
                   </div>
                 </div>
               )}
 
               {/* ROW 2 of Pair: The Matching Piano Keyboard Strip with synchronized scrolling */}
               <div
-                className="mt-2"
+                className={isStepChoicesVisible ? 'mt-2' : 'mt-0.5'}
                 id={step.stepIndex === 1 ? 'first-piano-keyboard-container' : `step_${step.stepIndex}_piano_container`}
                 data-step-index={step.stepIndex}
                 data-first-piano={step.stepIndex === 1 ? 'true' : undefined}
@@ -2087,6 +2107,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                   onSyncScroll={handleSyncScroll}
                   onSyncScrollBy={handleSyncScrollBy}
                   onSyncCenter={handleSyncCenter}
+                  playedChordInfo={
+                    step.selectedChoice
+                      ? {
+                          chordName:
+                            convention === 'international'
+                              ? step.selectedChoice.chord.symbol
+                              : step.selectedChoice.chord.polishSymbol,
+                          fitScore: step.selectedChoice.fitScore,
+                          fitTier: step.selectedChoice.fitTier,
+                        }
+                      : null
+                  }
                 />
               </div>
 

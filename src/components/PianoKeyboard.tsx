@@ -1,5 +1,5 @@
 import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react';
-import { NoteName, NamingConvention } from '../types/music';
+import { NoteName, NamingConvention, ChordFitTier } from '../types/music';
 import { NOTE_NAMES, getNoteLabel, getFullNoteLabel } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
@@ -11,6 +11,12 @@ export interface KeyInfo {
   isBlack: boolean;
   label: string;
   keyboardKey?: string;
+}
+
+export interface PlayedChordHeaderInfo {
+  chordName: string;
+  fitScore: number;
+  fitTier?: ChordFitTier;
 }
 
 interface PianoKeyboardProps {
@@ -26,6 +32,7 @@ interface PianoKeyboardProps {
   showLabels?: boolean;
   convention?: NamingConvention;
   idPrefix?: string;
+  playedChordInfo?: PlayedChordHeaderInfo | null;
   // Synchronized scrolling across all keyboard rows
   onSyncScroll?: (scrollLeft: number, sourceId: string) => void;
   onSyncScrollBy?: (delta: number) => void;
@@ -80,6 +87,7 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
   showLabels = false,
   convention = 'international',
   idPrefix = 'piano',
+  playedChordInfo = null,
   onSyncScroll,
   onSyncScrollBy,
   onSyncCenter,
@@ -327,14 +335,37 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
     <div className="w-full relative select-none">
       {/* Scroll Navigation Header & Quick Jump Controls */}
       <div className="flex items-center justify-between mb-1 px-1 text-[11px] text-slate-400">
-        <div className="flex items-center gap-1.5">
-          <span className="font-mono text-[10px] text-slate-400">
+        <div className="flex items-center gap-2 flex-wrap min-w-0">
+          <span className="font-mono text-[10px] text-slate-400 shrink-0">
             {getNoteLabel(keys[0]?.note, convention)}{keys[0]?.octave} —{' '}
             {getNoteLabel(keys[keys.length - 1]?.note, convention)}{keys[keys.length - 1]?.octave}
           </span>
-          <span className="text-[10px] text-slate-500 hidden sm:inline">
-            (przesuwaj w prawo i lewo)
-          </span>
+
+          {/* User Request 1: In the existing C3-C6 row, display the played chord name & score percentage */}
+          {playedChordInfo && (
+            <div className="flex items-center gap-1.5 animate-in fade-in duration-100">
+              <span className="font-bold text-xs text-white bg-slate-900 px-1.5 py-0.5 rounded border border-amber-500/35">
+                {playedChordInfo.chordName}
+              </span>
+              <span
+                className={`text-[10px] font-black px-1.5 py-0.5 rounded ${
+                  playedChordInfo.fitTier === 'perfect' || playedChordInfo.fitScore >= 90
+                    ? 'text-emerald-300 bg-emerald-500/20 border border-emerald-500/30'
+                    : playedChordInfo.fitTier === 'good' || playedChordInfo.fitScore >= 70
+                    ? 'text-sky-300 bg-sky-500/20 border border-sky-500/30'
+                    : 'text-amber-300 bg-amber-500/20 border border-amber-500/30'
+                }`}
+              >
+                ★ {playedChordInfo.fitScore}%
+              </span>
+            </div>
+          )}
+
+          {!playedChordInfo && (
+            <span className="text-[10px] text-slate-500 hidden sm:inline">
+              (przesuwaj w prawo i lewo)
+            </span>
+          )}
         </div>
 
         <div className="flex items-center gap-1">

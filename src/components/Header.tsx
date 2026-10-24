@@ -1,12 +1,12 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Volume2, VolumeX, Clock, PowerOff, History } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, Clock, History, Music, Sparkles } from 'lucide-react';
 import { sound } from '../utils/audioEngine';
-import { SessionHistoryModal, SessionHistoryEntry } from './SessionHistoryModal';
+import { SessionHistoryModal } from './SessionHistoryModal';
 import {
   recordSessionStart,
-  clearPreviousSessionHistory,
-  getLastClosedTime,
-  recordCurrentClosedTime,
+  getActivityHistory,
+  clearActivityHistory,
+  ActivityHistoryEntry,
 } from '../utils/sessionTracker';
 
 interface HeaderProps {
@@ -24,84 +24,102 @@ export const Header: React.FC<HeaderProps> = ({
   isMuted,
   onToggleMute,
 }) => {
-  // Session tracking: records current start time and stores last 10 session start times
-  const [{ current: currentSession, history: initialHistory }] = useState(() => recordSessionStart());
-  const [sessionHistory, setSessionHistory] = useState<SessionHistoryEntry[]>(initialHistory);
+  // Session tracking: records current start time and stores history in localStorage
+  const [{ current: currentSession }] = useState(() => recordSessionStart());
+  const [activityHistory, setActivityHistory] = useState<ActivityHistoryEntry[]>(() => getActivityHistory());
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
-  const [lastClosedTime, setLastClosedTime] = useState(() => getLastClosedTime());
 
-  // Heartbeat & exit listener to track the exact second the user leaves or closes the app
+  // Sync activity history dynamically when new patterns are loaded or history is cleared
   useEffect(() => {
-    const updateExitTime = () => {
-      recordCurrentClosedTime();
-      setLastClosedTime(getLastClosedTime());
+    const handleUpdate = () => {
+      setActivityHistory(getActivityHistory());
     };
 
-    // Heartbeat interval (1s) so even sudden power-off/browser termination has exact second
-    const interval = setInterval(updateExitTime, 1000);
-
-    const handleBeforeUnload = () => updateExitTime();
-    const handlePageHide = () => updateExitTime();
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'hidden') {
-        updateExitTime();
-      }
-    };
-
-    window.addEventListener('beforeunload', handleBeforeUnload);
-    window.addEventListener('pagehide', handlePageHide);
-    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('harmonix:activity-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
 
     return () => {
-      clearInterval(interval);
-      window.removeEventListener('beforeunload', handleBeforeUnload);
-      window.removeEventListener('pagehide', handlePageHide);
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('harmonix:activity-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  // Most recent pattern load entry, if any
+  const lastPatternLoad = activityHistory.find((entry) => entry.type === 'pattern_load');
+
+  // Measure exact header height so pinned elements can sit flush right below it
+  const headerRef = React.useRef<HTMLElement>(null);
+  useEffect(() => {
+    const updateHeaderHeight = () => {
+      if (headerRef.current) {
+        const height = headerRef.current.offsetHeight;
+        document.documentElement.style.setProperty('--app-header-height', `${height}px`);
+      }
+    };
+    updateHeaderHeight();
+    window.addEventListener('resize', updateHeaderHeight);
+    let ro: ResizeObserver | null = null;
+    if (typeof ResizeObserver !== 'undefined' && headerRef.current) {
+      ro = new ResizeObserver(updateHeaderHeight);
+      ro.observe(headerRef.current);
+    }
+    return () => {
+      window.removeEventListener('resize', updateHeaderHeight);
+      ro?.disconnect();
     };
   }, []);
 
   return (
-    <header className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md">
-      {/* Top Utility Ribbon: Session Launch Time & Previous Exit Time (co do sekundy) */}
-      <div className="w-full bg-[#070b13] border-b border-slate-900 py-1 px-4 sm:px-6 text-[11px] text-slate-400">
+    <header
+      ref={headerRef}
+      id="app-main-header"
+      className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md"
+    >
+      {/* Top Utility Ribbon: Session Launch Time & Last Loaded Pattern */}
+      <div className="w-full bg-[#070b13] border-b border-slate-900 py-1.5 px-4 sm:px-6 text-[11px] text-slate-400">
         <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <div className="flex items-center gap-2.5 flex-wrap">
+          <div className="flex items-center gap-3 flex-wrap">
             <div className="flex items-center gap-1.5">
               <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
               <span>
-                Sesja uruchomiona o:{' '}
+                Uruchomiono:{' '}
                 <strong className="text-amber-300 font-mono font-semibold">{currentSession.timeString}</strong>
               </span>
             </div>
 
-            {/* Przycisk otwierający ostatnie 10 czasów rozpoczęcia */}
+            {lastPatternLoad ? (
+              <div className="flex items-center gap-1.5 text-slate-300">
+                <Music className="w-3.5 h-3.5 text-sky-400 shrink-0" />
+                <span>
+                  Ostatni wzorzec:{' '}
+                  <strong className="text-sky-300 font-semibold">{lastPatternLoad.title}</strong>{' '}
+                  <span className="text-slate-400 font-mono text-[10px]">({lastPatternLoad.timeString})</span>
+                </span>
+              </div>
+            ) : (
+              <div className="flex items-center gap-1.5 text-slate-500 italic hidden sm:flex">
+                <Sparkles className="w-3 h-3 text-slate-500" />
+                <span>Brak załadowanego wzorca z biblioteki</span>
+              </div>
+            )}
+          </div>
+
+          <div className="flex items-center gap-2">
             <button
               type="button"
               onClick={() => setIsHistoryModalOpen(true)}
-              title="Wyświetl listę ostatnich 10 czasów uruchomienia aplikacji"
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-400/20 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/40 text-[11px] font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+              title="Wyświetl historię uruchomień i załadowanych wzorców"
+              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/35 text-[11px] font-bold transition-all cursor-pointer shadow-sm active:scale-95"
             >
-              <History className="w-3 h-3 text-amber-400 group-hover:text-slate-950 shrink-0" />
-              <span>Ostatnie uruchomienia ({sessionHistory.length})</span>
+              <History className="w-3 h-3 shrink-0" />
+              <span>Historia ćwiczeń ({activityHistory.length})</span>
             </button>
-          </div>
-
-          <div className="flex items-center gap-1.5">
-            <PowerOff className="w-3.5 h-3.5 text-rose-400 shrink-0" />
-            <span>
-              Aplikacja poprzednio wyłączona o:{' '}
-              {lastClosedTime ? (
-                <strong className="text-slate-200 font-mono font-semibold">{lastClosedTime}</strong>
-              ) : (
-                <span className="text-slate-500 italic">brak danych (pierwsze uruchomienie)</span>
-              )}
-            </span>
           </div>
         </div>
       </div>
 
-      <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 py-3.5">
-        {/* Zone 1: Brand Wordmark (one line, single element) */}
+      <div className="max-w-7xl mx-auto flex items-center justify-between gap-8 px-4 sm:px-6 py-3">
+        {/* Zone 1: Brand Wordmark */}
         <div
           onClick={() => onViewChange('workshop')}
           className="text-lg sm:text-xl font-black tracking-tight text-white whitespace-nowrap shrink-0 cursor-pointer flex items-center gap-2"
@@ -110,28 +128,15 @@ export const Header: React.FC<HeaderProps> = ({
           <span>Harmonix</span>
         </div>
 
-        {/* Zone 2: Navigation tabs with small info directly above */}
-        <div className="hidden md:flex flex-col items-center gap-1.5">
-          {/* Mała informacja nad zakładkami typu "ćwiczenia", "wzorce" itd */}
-          <div className="flex items-center gap-1.5 px-3 py-0.5 rounded-full bg-slate-900/90 border border-slate-800 text-[11px] text-slate-400 shadow-inner">
-            <PowerOff className="w-3 h-3 text-rose-400 shrink-0" />
-            <span>
-              Aplikacja wyłączona o:{' '}
-              {lastClosedTime ? (
-                <strong className="text-slate-200 font-mono font-semibold">{lastClosedTime}</strong>
-              ) : (
-                <span className="text-slate-500 italic">brak wcześniejszego wyłączenia (pierwsze uruchomienie)</span>
-              )}
-            </span>
-          </div>
-
+        {/* Zone 2: Navigation tabs */}
+        <div className="hidden md:flex items-center">
           <nav className="flex items-center gap-6 text-sm font-medium text-slate-300">
             <button
               type="button"
               onClick={() => onViewChange('workshop')}
-              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
                 activeView === 'workshop'
-                  ? 'text-amber-400 font-semibold'
+                  ? 'text-amber-400 font-semibold border-b-2 border-amber-400'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -140,9 +145,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('library')}
-              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
                 activeView === 'library'
-                  ? 'text-amber-400 font-semibold'
+                  ? 'text-amber-400 font-semibold border-b-2 border-amber-400'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -151,9 +156,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('circle')}
-              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
                 activeView === 'circle'
-                  ? 'text-amber-400 font-semibold'
+                  ? 'text-amber-400 font-semibold border-b-2 border-amber-400'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -162,9 +167,9 @@ export const Header: React.FC<HeaderProps> = ({
             <button
               type="button"
               onClick={() => onViewChange('sandbox')}
-              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer ${
+              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
                 activeView === 'sandbox'
-                  ? 'text-amber-400 font-semibold'
+                  ? 'text-amber-400 font-semibold border-b-2 border-amber-400'
                   : 'text-slate-400 hover:text-slate-200'
               }`}
             >
@@ -173,7 +178,7 @@ export const Header: React.FC<HeaderProps> = ({
           </nav>
         </div>
 
-        {/* Zone 3: 1 primary action */}
+        {/* Zone 3: Actions */}
         <div className="flex items-center gap-3 shrink-0">
           <button
             type="button"
@@ -195,70 +200,48 @@ export const Header: React.FC<HeaderProps> = ({
         </div>
       </div>
 
-      {/* Mobile nav bar row with info directly above tabs */}
+      {/* Mobile nav bar row */}
       <div className="md:hidden border-t border-slate-900 bg-slate-950">
-        <div className="flex flex-wrap items-center justify-between gap-1.5 py-1 px-3 bg-[#060a12] text-[10.5px] text-slate-400 border-b border-slate-900/60">
-          <div className="flex items-center gap-1.5">
-            <PowerOff className="w-3 h-3 text-rose-400 shrink-0" />
-            <span>
-              Wył. o:{' '}
-              {lastClosedTime ? (
-                <strong className="text-slate-200 font-mono font-semibold">{lastClosedTime}</strong>
-              ) : (
-                <span className="text-slate-500 italic">brak</span>
-              )}
-            </span>
-          </div>
-
-          <button
-            type="button"
-            onClick={() => setIsHistoryModalOpen(true)}
-            className="flex items-center gap-1 px-2 py-0.5 rounded bg-amber-400/20 text-amber-300 text-[10px] font-bold border border-amber-400/30 active:scale-95 cursor-pointer"
-          >
-            <History className="w-3 h-3 text-amber-400" />
-            <span>Starty ({sessionHistory.length})</span>
-          </button>
-        </div>
         <div className="flex items-center justify-around px-2 py-2 text-xs">
           <button
             type="button"
             onClick={() => onViewChange('workshop')}
-            className={`px-2 py-1 rounded ${activeView === 'workshop' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
+            className={`px-2.5 py-1 rounded-lg ${activeView === 'workshop' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
           >
             Ćwiczenia
           </button>
           <button
             type="button"
             onClick={() => onViewChange('library')}
-            className={`px-2 py-1 rounded ${activeView === 'library' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
+            className={`px-2.5 py-1 rounded-lg ${activeView === 'library' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
           >
             Wzorce
           </button>
           <button
             type="button"
             onClick={() => onViewChange('circle')}
-            className={`px-2 py-1 rounded ${activeView === 'circle' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
+            className={`px-2.5 py-1 rounded-lg ${activeView === 'circle' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
           >
             Koło Kwintowe
           </button>
           <button
             type="button"
             onClick={() => onViewChange('sandbox')}
-            className={`px-2 py-1 rounded ${activeView === 'sandbox' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
+            className={`px-2.5 py-1 rounded-lg ${activeView === 'sandbox' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
           >
             Pianino
           </button>
         </div>
       </div>
 
-      {/* Session History Modal displaying the last 10 session start times */}
+      {/* Session & Activity History Modal */}
       <SessionHistoryModal
         isOpen={isHistoryModalOpen}
         onClose={() => setIsHistoryModalOpen(false)}
-        history={sessionHistory}
+        history={activityHistory}
         onClearHistory={() => {
-          const updated = clearPreviousSessionHistory(currentSession);
-          setSessionHistory(updated);
+          const cleared = clearActivityHistory();
+          setActivityHistory(cleared);
         }}
       />
     </header>

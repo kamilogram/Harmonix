@@ -20,7 +20,8 @@ import { TheoryModal } from './components/TheoryModal';
 import { CircleOfFifths } from './components/CircleOfFifths';
 import { ProgressionLibrary, LoadedProgressionMetadata } from './components/ProgressionLibrary';
 import { FreePlaySandbox } from './components/FreePlaySandbox';
-import { scrollToFirstPianoKeyboard, scrollToLoadedProgressionCard } from './utils/scrollHelper';
+import { scrollToTonalityProgressionBar, scrollToLoadedProgressionCard } from './utils/scrollHelper';
+import { recordPatternLoad } from './utils/sessionTracker';
 import {
   Sparkles,
   Music,
@@ -82,7 +83,10 @@ export default function App() {
       localStorage.removeItem('harmonix_workshop_results_v1');
     } catch {}
     setActiveView('workshop');
-    scrollToFirstPianoKeyboard();
+    if (metadata?.progName) {
+      recordPatternLoad(metadata.progName, metadata.keyName, metadata.degrees);
+    }
+    scrollToTonalityProgressionBar();
   };
 
   const handleViewChange = useCallback((view: 'workshop' | 'library' | 'circle' | 'sandbox') => {
