@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { BookOpen, Volume2, VolumeX, Clock, History, Music, Sparkles } from 'lucide-react';
+import { BookOpen, Volume2, VolumeX, History } from 'lucide-react';
 import { sound } from '../utils/audioEngine';
 import { SessionHistoryModal } from './SessionHistoryModal';
 import {
@@ -25,7 +25,9 @@ export const Header: React.FC<HeaderProps> = ({
   onToggleMute,
 }) => {
   // Session tracking: records current start time and stores history in localStorage
-  const [{ current: currentSession }] = useState(() => recordSessionStart());
+  useEffect(() => {
+    recordSessionStart();
+  }, []);
   const [activityHistory, setActivityHistory] = useState<ActivityHistoryEntry[]>(() => getActivityHistory());
   const [isHistoryModalOpen, setIsHistoryModalOpen] = useState(false);
 
@@ -75,46 +77,18 @@ export const Header: React.FC<HeaderProps> = ({
       id="app-main-header"
       className="sticky top-0 z-40 w-full border-b border-slate-800 bg-slate-950/90 backdrop-blur-md"
     >
-      {/* Top Utility Ribbon: Session Launch Time & Last Loaded Pattern */}
-      <div className="w-full bg-[#070b13] border-b border-slate-900 py-1.5 px-4 sm:px-6 text-[11px] text-slate-400">
-        <div className="max-w-7xl mx-auto flex flex-wrap items-center justify-between gap-x-4 gap-y-1.5">
-          <div className="flex items-center gap-3 flex-wrap">
-            <div className="flex items-center gap-1.5">
-              <Clock className="w-3.5 h-3.5 text-amber-400 shrink-0" />
-              <span>
-                Uruchomiono:{' '}
-                <strong className="text-amber-300 font-mono font-semibold">{currentSession.timeString}</strong>
-              </span>
-            </div>
-
-            {lastPatternLoad ? (
-              <div className="flex items-center gap-1.5 text-slate-300">
-                <Music className="w-3.5 h-3.5 text-sky-400 shrink-0" />
-                <span>
-                  Ostatni wzorzec:{' '}
-                  <strong className="text-sky-300 font-semibold">{lastPatternLoad.title}</strong>{' '}
-                  <span className="text-slate-400 font-mono text-[10px]">({lastPatternLoad.timeString})</span>
-                </span>
-              </div>
-            ) : (
-              <div className="flex items-center gap-1.5 text-slate-500 italic hidden sm:flex">
-                <Sparkles className="w-3 h-3 text-slate-500" />
-                <span>Brak załadowanego wzorca z biblioteki</span>
-              </div>
-            )}
-          </div>
-
-          <div className="flex items-center gap-2">
-            <button
-              type="button"
-              onClick={() => setIsHistoryModalOpen(true)}
-              title="Wyświetl historię uruchomień i załadowanych wzorców"
-              className="flex items-center gap-1.5 px-2.5 py-0.5 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/35 text-[11px] font-bold transition-all cursor-pointer shadow-sm active:scale-95"
-            >
-              <History className="w-3 h-3 shrink-0" />
-              <span>Historia ćwiczeń ({activityHistory.length})</span>
-            </button>
-          </div>
+      {/* Top Utility Strip: Only History Button as requested */}
+      <div className="w-full bg-[#070b13] border-b border-slate-900 py-1.5 px-4 sm:px-6">
+        <div className="max-w-7xl mx-auto flex items-center justify-end">
+          <button
+            type="button"
+            onClick={() => setIsHistoryModalOpen(true)}
+            title="Otwórz historię uruchomień i załadowanych wzorców"
+            className="flex items-center gap-1.5 px-3 py-1 rounded-lg bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/35 text-xs font-bold transition-all cursor-pointer shadow-sm active:scale-95"
+          >
+            <History className="w-3.5 h-3.5 shrink-0" />
+            <span>Historia ({activityHistory.length})</span>
+          </button>
         </div>
       </div>
 

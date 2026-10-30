@@ -96,9 +96,59 @@ export default function App() {
     }
   }, [loadedProgressionId]);
 
+  const renderFooter = () => (
+    <footer className="border-t border-slate-800/80 pt-6 pb-4 mt-8 text-xs text-slate-400">
+      <div className="flex flex-col sm:flex-row items-center justify-between gap-3">
+        <div className="flex items-center gap-2">
+          <span className="font-semibold text-slate-300">Harmonix</span>
+          <span>·</span>
+          <span>Szachownica Progresji Fortepianowych</span>
+        </div>
+        <div className="flex items-center gap-4 flex-wrap justify-center">
+          <button
+            type="button"
+            onClick={() => setIsTheoryOpen(true)}
+            className="hover:text-amber-400 transition-colors cursor-pointer flex items-center gap-1"
+          >
+            <BookOpen className="w-3.5 h-3.5" />
+            <span>Podręcznik Teorii</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewChange('workshop')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Ćwiczenia
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewChange('library')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Wzorce
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewChange('circle')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Koło Kwintowe
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewChange('sandbox')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Swobodne Pianino
+          </button>
+        </div>
+      </div>
+    </footer>
+  );
+
   return (
-    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950">
-      {/* Top Bar Header */}
+    <div className="h-screen h-[100dvh] bg-slate-950 text-slate-100 flex flex-col font-sans selection:bg-amber-400 selection:text-slate-950 overflow-hidden">
+      {/* Top Bar Header (Docked at top, does not scroll away) */}
       <Header
         activeView={activeView}
         onViewChange={handleViewChange}
@@ -107,159 +157,157 @@ export default function App() {
         onToggleMute={handleToggleMute}
       />
 
-      {/* Main Container */}
-      <main className="flex-1 max-w-7xl w-full mx-auto px-3 sm:px-6 py-5 sm:py-8 space-y-6">
-        {/* VIEW 1: Main Workshop (Chessboard Row-by-Row Layout) */}
-        <div className={activeView === 'workshop' ? 'block space-y-6' : 'hidden'}>
-          {/* Top Sub-Bar with Notation switch and prominent active tonality */}
-          <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
-            <div className="flex items-center gap-2 flex-wrap">
-              <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-              <span className="text-sm font-semibold text-slate-300">
-                Warsztat Harmoniczny
-              </span>
-              <div className="flex items-center gap-1.5 ml-1">
-                <span className="text-xs text-slate-400">Tonacja ćwiczenia:</span>
-                <span className="px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs shadow-sm">
-                  {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}
-                </span>
-                {loadedKeyInfo?.progName && (
-                  <span className="text-[11px] text-amber-300/80 font-medium hidden md:inline">
-                    ({loadedKeyInfo.progName})
+      {/* Main Tab Panels Container: Independent native scroll containers for each tab */}
+      <div className="flex-1 min-h-0 relative w-full overflow-hidden">
+        {/* TAB 1: Main Workshop (Physical Tab with independent scroll) */}
+        <div
+          id="tabpanel-workshop"
+          role="tabpanel"
+          aria-label="Ćwiczenia"
+          className={`absolute inset-0 overflow-y-auto ${
+            activeView === 'workshop' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1 space-y-6">
+              {/* Top Sub-Bar with Notation switch and prominent active tonality */}
+              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
+                <div className="flex items-center gap-2 flex-wrap">
+                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
+                  <span className="text-sm font-semibold text-slate-300">
+                    Warsztat Harmoniczny
                   </span>
-                )}
-                {loadedKeyInfo?.degrees && (
-                  <span className="text-[11px] font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 hidden lg:inline">
-                    {loadedKeyInfo.degrees}
-                  </span>
-                )}
+                  <div className="flex items-center gap-1.5 ml-1">
+                    <span className="text-xs text-slate-400">Tonacja ćwiczenia:</span>
+                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs shadow-sm">
+                      {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}
+                    </span>
+                    {loadedKeyInfo?.progName && (
+                      <span className="text-[11px] text-amber-300/80 font-medium hidden md:inline">
+                        ({loadedKeyInfo.progName})
+                      </span>
+                    )}
+                    {loadedKeyInfo?.degrees && (
+                      <span className="text-[11px] font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 hidden lg:inline">
+                        {loadedKeyInfo.degrees}
+                      </span>
+                    )}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2.5 self-start sm:self-auto">
+                  <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => setConvention('polish')}
+                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+                        convention === 'polish'
+                          ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Polskie (C - H)
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setConvention('international')}
+                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
+                        convention === 'international'
+                          ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+                          : 'text-slate-400 hover:text-slate-200'
+                      }`}
+                    >
+                      Intl (C - B)
+                    </button>
+                  </div>
+                </div>
               </div>
+
+              {/* Chessboard Progression Board */}
+              <ChessboardProgressionBoard
+                convention={convention}
+                onOpenTheory={() => setIsTheoryOpen(true)}
+                loadedProgression={loadedProgression}
+                loadedKeyInfo={loadedKeyInfo}
+                onClearLoadedProgression={() => {
+                  setLoadedProgression(null);
+                  setLoadedKeyInfo(null);
+                  setLoadedProgressionId(null);
+                  setWorkshopResults({});
+                }}
+                onUpdateWorkshopResults={handleUpdateWorkshopResults}
+                onNavigateToLibrary={() => handleViewChange('library')}
+                onLoadProgression={handleLoadFromLibrary}
+              />
             </div>
+            {renderFooter()}
+          </div>
+        </div>
 
-            <div className="flex items-center gap-2.5 self-start sm:self-auto">
-              <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
-                <button
-                  type="button"
-                  onClick={() => setConvention('polish')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                    convention === 'polish'
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Polskie (C - H)
-                </button>
-                <button
-                  type="button"
-                  onClick={() => setConvention('international')}
-                  className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                    convention === 'international'
-                      ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                      : 'text-slate-400 hover:text-slate-200'
-                  }`}
-                >
-                  Intl (C - B)
-                </button>
-              </div>
+        {/* TAB 2: Progression Library (Physical Tab with independent scroll) */}
+        <div
+          id="tabpanel-library"
+          role="tabpanel"
+          aria-label="Wzorce"
+          className={`absolute inset-0 overflow-y-auto ${
+            activeView === 'library' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1">
+              <ProgressionLibrary
+                convention={convention}
+                onLoadProgression={handleLoadFromLibrary}
+                workshopResults={workshopResults}
+                loadedProgressionId={loadedProgressionId}
+                onClearWorkshopResults={handleClearWorkshopResults}
+                isActiveView={activeView === 'library'}
+              />
             </div>
-          </div>
-
-          {/* Chessboard Progression Board */}
-          <ChessboardProgressionBoard
-            convention={convention}
-            onOpenTheory={() => setIsTheoryOpen(true)}
-            loadedProgression={loadedProgression}
-            loadedKeyInfo={loadedKeyInfo}
-            onClearLoadedProgression={() => {
-              setLoadedProgression(null);
-              setLoadedKeyInfo(null);
-              setLoadedProgressionId(null);
-              setWorkshopResults({});
-            }}
-            onUpdateWorkshopResults={handleUpdateWorkshopResults}
-            onNavigateToLibrary={() => handleViewChange('library')}
-          />
-        </div>
-
-        {/* VIEW 2: Progression Library with key change capability (persistent when switching tabs) */}
-        <div className={activeView === 'library' ? 'block' : 'hidden'}>
-          <ProgressionLibrary
-            convention={convention}
-            onLoadProgression={handleLoadFromLibrary}
-            workshopResults={workshopResults}
-            loadedProgressionId={loadedProgressionId}
-            onClearWorkshopResults={handleClearWorkshopResults}
-            isActiveView={activeView === 'library'}
-          />
-        </div>
-
-        {/* VIEW 3: Interactive Circle of Fifths */}
-        {activeView === 'circle' && (
-          <div className="max-w-4xl mx-auto space-y-6">
-            <CircleOfFifths convention={convention} />
-          </div>
-        )}
-
-        {/* VIEW 4: Free Play Sandbox */}
-        {activeView === 'sandbox' && (
-          <FreePlaySandbox
-            convention={convention}
-            onStartProgressionWithChord={(chord) => {
-              setLoadedProgression([chord]);
-              setActiveView('workshop');
-            }}
-          />
-        )}
-      </main>
-
-      {/* Footer */}
-      <footer className="border-t border-slate-800 bg-slate-950 py-5 text-xs text-slate-400">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 flex flex-col sm:flex-row items-center justify-between gap-3">
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-300">Harmonix</span>
-            <span>·</span>
-            <span>Szachownica Progresji Fortepianowych</span>
-          </div>
-          <div className="flex items-center gap-4">
-            <button
-              type="button"
-              onClick={() => setIsTheoryOpen(true)}
-              className="hover:text-amber-400 transition-colors cursor-pointer flex items-center gap-1"
-            >
-              <BookOpen className="w-3.5 h-3.5" />
-              <span>Podręcznik Teorii</span>
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewChange('workshop')}
-              className="hover:text-amber-400 transition-colors cursor-pointer"
-            >
-              Ćwiczenia
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewChange('library')}
-              className="hover:text-amber-400 transition-colors cursor-pointer"
-            >
-              Wzorce
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewChange('circle')}
-              className="hover:text-amber-400 transition-colors cursor-pointer"
-            >
-              Koło Kwintowe
-            </button>
-            <button
-              type="button"
-              onClick={() => handleViewChange('sandbox')}
-              className="hover:text-amber-400 transition-colors cursor-pointer"
-            >
-              Swobodne Pianino
-            </button>
+            {renderFooter()}
           </div>
         </div>
-      </footer>
+
+        {/* TAB 3: Interactive Circle of Fifths (Physical Tab with independent scroll) */}
+        <div
+          id="tabpanel-circle"
+          role="tabpanel"
+          aria-label="Koło Kwintowe"
+          className={`absolute inset-0 overflow-y-auto ${
+            activeView === 'circle' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1 max-w-4xl mx-auto w-full space-y-6">
+              <CircleOfFifths convention={convention} />
+            </div>
+            {renderFooter()}
+          </div>
+        </div>
+
+        {/* TAB 4: Free Play Sandbox (Physical Tab with independent scroll) */}
+        <div
+          id="tabpanel-sandbox"
+          role="tabpanel"
+          aria-label="Swobodne Pianino"
+          className={`absolute inset-0 overflow-y-auto ${
+            activeView === 'sandbox' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1">
+              <FreePlaySandbox
+                convention={convention}
+                onStartProgressionWithChord={(chord) => {
+                  setLoadedProgression([chord]);
+                  setActiveView('workshop');
+                }}
+              />
+            </div>
+            {renderFooter()}
+          </div>
+        </div>
+      </div>
 
       {/* Theory Guide Modal */}
       <TheoryModal

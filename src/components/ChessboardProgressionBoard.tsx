@@ -42,9 +42,13 @@ import {
   Compass,
   Pin,
   PinOff,
+  ArrowLeftRight,
+  Wand2,
 } from 'lucide-react';
-import { LoadedProgressionMetadata, formatDegreeLabel } from './ProgressionLibrary';
+import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormula } from './ProgressionLibrary';
 import { scrollToTonalityProgressionBar } from '../utils/scrollHelper';
+import { generateSmartProgression, saveCustomProgression } from '../utils/progressionGenerator';
+import { parseChordSymbol } from '../utils/musicTheory';
 
 export interface CardTheme {
   id: string;
@@ -114,6 +118,7 @@ interface ChessboardProgressionBoardProps {
   onClearLoadedProgression?: () => void;
   onUpdateWorkshopResults?: (results: Record<number, WorkshopStepResult>) => void;
   onNavigateToLibrary?: () => void;
+  onLoadProgression?: (chords: ChordDefinition[], metadata?: LoadedProgressionMetadata) => void;
 }
 
 // Helper to generate the exact starter steps matching the screenshot
@@ -664,36 +669,30 @@ function buildStepsFromChordDefinitions(chords: ChordDefinition[]): BoardStep[] 
 // Helper to determine if a progression step has been correctly chosen or played
 export function isStepCorrect(step: BoardStep): boolean {
   const targetChord = step.baseChord;
+  const targetPitchClasses = Array.from(
+    new Set(targetChord.defaultNotes.map((n) => n.midi % 12))
+  ).sort((a, b) => a - b);
 
-  // 1. If user selected a choice, check if it matches the target chord
-  if (step.selectedChoice) {
-    const choice = step.selectedChoice;
-    const matchesTarget =
-      choice.chord.root === targetChord.root && choice.chord.quality === targetChord.quality;
-    if (matchesTarget || choice.fitTier === 'perfect' || choice.fitScore >= 80) {
-      return true;
-    }
-  }
-
-  // 2. If marked as solved
-  if (step.isSolved) {
-    return true;
-  }
-
-  // 3. If played on the keyboard and pitch classes match target
+  // If the user has notes selected on the keyboard, keyboard input MUST match the target chord:
+  // EXACT count of pitch classes (e.g. 4 for 7th chords, 3 for triads) AND exact pitch class match
   if (step.selectedMidis.length > 0) {
-    const targetPitchClasses = Array.from(
-      new Set(targetChord.defaultNotes.map((n) => n.midi % 12))
-    ).sort((a, b) => a - b);
     const playedPitchClasses = Array.from(
       new Set(step.selectedMidis.map((m) => m % 12))
     ).sort((a, b) => a - b);
-    if (
+
+    return (
       playedPitchClasses.length === targetPitchClasses.length &&
       playedPitchClasses.every((p, i) => p === targetPitchClasses[i])
-    ) {
-      return true;
-    }
+    );
+  }
+
+  // If no notes on keyboard, check if user explicitly clicked the exact matching target chord tile:
+  if (step.selectedChoice) {
+    const choice = step.selectedChoice;
+    return (
+      choice.chord.root === targetChord.root &&
+      choice.chord.quality === targetChord.quality
+    );
   }
 
   return false;
@@ -707,6 +706,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   onClearLoadedProgression,
   onUpdateWorkshopResults,
   onNavigateToLibrary,
+  onLoadProgression,
 }) => {
   // Pre-generate steps (default 4 matching screenshot or loadedProgression if present)
   const [steps, setSteps] = useState<BoardStep[]>(() => {
@@ -803,8 +803,26 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   const [activePlaybackStep, setActivePlaybackStep] = useState<number | null>(null);
 
   // One-button toggle to hide chord choices rows (revealing only the piano keyboards for no-hint play)
-  const [hideChordChoices, setHideChordChoices] = useState<boolean>(false);
+  // User Request 1: Niech na starcie aplikacji będzie się włączał tryb bez podpowiedzi
+  const [hideChordChoices, setHideChordChoices] = useState<boolean>(() => {
+    try {
+      const saved = localStorage.getItem('harmonix_hide_chord_choices');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true; // Default to true (tryb bez podpowiedzi na starcie aplikacji)
+  });
   const [peekedStepIndices, setPeekedStepIndices] = useState<Set<number>>(new Set());
+
+  const handleToggleHideChordChoices = (forcedVal?: boolean) => {
+    setHideChordChoices((prev) => {
+      const next = typeof forcedVal === 'boolean' ? forcedVal : !prev;
+      try {
+        localStorage.setItem('harmonix_hide_chord_choices', String(next));
+      } catch {}
+      return next;
+    });
+    setPeekedStepIndices(new Set());
+  };
 
   const handleToggleStepPeek = (stepIdx: number) => {
     setPeekedStepIndices((prev) => {
@@ -818,10 +836,10 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   // User request: Pin tonality & progression bar right below navigation tabs
   const [isTonalityBarPinned, setIsTonalityBarPinned] = useState<boolean>(() => {
     try {
-      return localStorage.getItem('harmonix_tonality_bar_pinned') === 'true';
-    } catch {
-      return false;
-    }
+      const saved = localStorage.getItem('harmonix_tonality_bar_pinned');
+      if (saved !== null) return saved === 'true';
+    } catch {}
+    return true; // Default to true so it stays stuck to the top!
   });
 
   const handleTogglePinTonalityBar = () => {
@@ -835,17 +853,37 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         // When user turns on pinning, smoothly scroll so it docks right under the header
         setTimeout(() => {
           const el = document.getElementById('workshop-tonality-progression-bar');
-          if (el) {
-            const headerEl = document.querySelector('header');
-            const headerHeight = headerEl ? headerEl.offsetHeight : 90;
-            const targetY = window.scrollY + el.getBoundingClientRect().top - headerHeight - 4;
-            window.scrollTo({
+          const panel = document.getElementById('tabpanel-workshop');
+          if (el && panel) {
+            const panelRect = panel.getBoundingClientRect();
+            const elRect = el.getBoundingClientRect();
+            const targetY = panel.scrollTop + (elRect.top - panelRect.top);
+            panel.scrollTo({
               top: Math.max(0, targetY),
               behavior: 'smooth',
             });
           }
         }, 50);
       }
+      return next;
+    });
+  };
+
+  // User Request: Toggle between Roman numeral progression notation and concrete chords in the active tonality
+  const [progressionNotation, setProgressionNotation] = useState<'roman' | 'chords'>(() => {
+    try {
+      return localStorage.getItem('harmonix_progression_bar_notation') === 'chords' ? 'chords' : 'roman';
+    } catch {
+      return 'roman';
+    }
+  });
+
+  const handleToggleProgressionNotation = () => {
+    setProgressionNotation((prev) => {
+      const next = prev === 'roman' ? 'chords' : 'roman';
+      try {
+        localStorage.setItem('harmonix_progression_bar_notation', next);
+      } catch {}
       return next;
     });
   };
@@ -948,9 +986,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         if (s.stepIndex !== stepIdx) return s;
         const targetChord = s.baseChord;
         const matchesTarget =
-          (choice.chord.root === targetChord.root && choice.chord.quality === targetChord.quality) ||
-          choice.fitTier === 'perfect' ||
-          choice.fitScore >= 80;
+          choice.chord.root === targetChord.root && choice.chord.quality === targetChord.quality;
         return {
           ...s,
           selectedChoice: choice,
@@ -963,6 +999,24 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     );
 
     sound.playChord(choice.chord.defaultNotes.map((n) => n.midi), 2.4, 0, 0.9);
+  };
+
+  // Reset/Clear a single step completely (keys and choice)
+  const handleResetSingleStep = (stepIdx: number) => {
+    setSteps((prev) =>
+      prev.map((s) =>
+        s.stepIndex === stepIdx
+          ? {
+              ...s,
+              selectedChoice: null,
+              selectedMidis: [],
+              highlightMap: {},
+              isSolved: false,
+              showHint: false,
+            }
+          : s
+      )
+    );
   };
 
   // Long press and touch handlers with scroll prevention
@@ -1213,6 +1267,85 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     }
   };
 
+  // User Request: Generate on-the-fly rich progressions with extended chords (6, sus2, sus4, aug, dim, add9)
+  const handleQuickGenerateExtended = () => {
+    const keyRoot = loadedKeyInfo?.root || 'C';
+    const mode = loadedKeyInfo?.mode || 'major';
+    const targetLength = (steps.length === 6 ? 6 : steps.length >= 8 ? 8 : 4) as 4 | 6 | 8;
+    const newProg = generateSmartProgression({
+      keyRoot,
+      mode,
+      length: targetLength,
+    });
+
+    const parsedChords = newProg.steps.map((st) => {
+      const parsed = parseChordSymbol(st.symbol);
+      return createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+    });
+
+    const formulaInfo = getProgressionRomanFormula(newProg);
+    const formulaString = formulaInfo.hasSections
+      ? formulaInfo.sectionFormulas.map((s) => `${s.name}: ${s.formula}`).join(' | ')
+      : formulaInfo.fullFormula;
+
+    // User Request: Niech każde kliknięcie wstawienia do warsztatu wygrywanej progresji automatycznie zapisuje ją do wzorców na stałe
+    saveCustomProgression(newProg);
+
+    setSteps(buildStepsFromChordDefinitions(parsedChords));
+
+    if (onLoadProgression) {
+      onLoadProgression(parsedChords, {
+        keyName: newProg.key,
+        progName: newProg.name,
+        progId: newProg.id,
+        degrees: formulaString,
+        root: keyRoot,
+        mode,
+      });
+    }
+
+    scrollToTonalityProgressionBar();
+  };
+
+  // User Request: Randomize tonality in workshop and transpose all steps to the new key
+  const handleRandomizeWorkshopKey = () => {
+    const currentRoot = loadedKeyInfo?.root || 'C';
+    const otherRoots = NOTE_NAMES.filter((r) => r !== currentRoot);
+    const newRoot = otherRoots[Math.floor(Math.random() * otherRoots.length)];
+    const oldIdx = NOTE_NAMES.indexOf(currentRoot);
+    const newIdx = NOTE_NAMES.indexOf(newRoot);
+    const delta = (newIdx - oldIdx + 12) % 12;
+
+    const isMinor = loadedKeyInfo?.mode === 'minor';
+    const keyLabel = getNoteLabel(newRoot, convention);
+    const newKeyName = isMinor ? `${keyLabel}-moll` : `${keyLabel}-dur`;
+
+    const transposedChords = steps.map((s) => {
+      const parsed = parseChordSymbol(s.baseChord.symbol);
+      const oldChordIdx = NOTE_NAMES.indexOf(parsed.root);
+      const newChordRoot = NOTE_NAMES[(oldChordIdx + delta) % 12];
+      return createChordDefinition(
+        newChordRoot,
+        parsed.quality,
+        s.baseChord.functionDegree,
+        s.baseChord.description
+      );
+    });
+
+    if (onLoadProgression) {
+      onLoadProgression(transposedChords, {
+        keyName: newKeyName,
+        progName: loadedKeyInfo?.progName || 'Ćwiczenie',
+        progId: loadedKeyInfo?.progId,
+        degrees: loadedKeyInfo?.degrees || '',
+        root: newRoot,
+        mode: loadedKeyInfo?.mode || 'major',
+      });
+    } else {
+      setSteps(buildStepsFromChordDefinitions(transposedChords));
+    }
+  };
+
   // Helper to evaluate what chord matches the played MIDI notes on a step
   const evaluatePlayedChord = (
     step: BoardStep,
@@ -1221,7 +1354,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     matchedChoice: QuizChoice | null;
     isSolved: boolean;
   } => {
-    if (updatedMidis.length < 2) {
+    if (updatedMidis.length === 0) {
       return { matchedChoice: null, isSolved: false };
     }
 
@@ -1229,39 +1362,49 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       new Set(updatedMidis.map((m) => m % 12))
     ).sort((a, b) => a - b);
 
-    const displayChoices = step.expandedChoices
-      ? [...step.choices, ...getExtendedChoices(step.choices)]
-      : step.choices;
+    const targetChord = step.baseChord;
+    const targetPitchClasses = Array.from(
+      new Set(targetChord.defaultNotes.map((n) => n.midi % 12))
+    ).sort((a, b) => a - b);
 
-    // 1. Check if selected pitch classes match any choice from candidate choices
-    for (const choice of displayChoices) {
-      const choicePitchClasses = Array.from(
-        new Set(choice.chord.defaultNotes.map((n) => n.midi % 12))
-      ).sort((a, b) => a - b);
+    // 1. EXACT match check against targetChord of this step:
+    // Requires exact pitch class count (triad = 3, 7th chord = 4) and exact matches!
+    const isTargetMatched =
+      selectedPitchClasses.length === targetPitchClasses.length &&
+      selectedPitchClasses.every((p, i) => p === targetPitchClasses[i]);
 
-      if (
-        choicePitchClasses.length === selectedPitchClasses.length &&
-        choicePitchClasses.every((p, i) => p === selectedPitchClasses[i])
-      ) {
-        return { matchedChoice: choice, isSolved: true };
+    if (isTargetMatched) {
+      const displayChoices = step.expandedChoices
+        ? [...step.choices, ...getExtendedChoices(step.choices)]
+        : step.choices;
+
+      const existingChoice = displayChoices.find(
+        (c) => c.chord.root === targetChord.root && c.chord.quality === targetChord.quality
+      );
+
+      if (existingChoice) {
+        return { matchedChoice: existingChoice, isSolved: true };
       }
+
+      const exactChoice: QuizChoice = {
+        id: `played_target_${targetChord.symbol}_step_${step.stepIndex}`,
+        chord: targetChord,
+        degreeName: `${targetChord.functionDegree || ''} (${targetChord.polishSymbol})`,
+        moodLabel: targetChord.emotionalRole || 'Poprawny akord progresji',
+        explanation: `Akord ${targetChord.polishSymbol} został poprawnie ułożony na klawiaturze.`,
+        whyItWorks: 'Idealne dopasowanie do wzorca.',
+        isRecommended: true,
+        fitTier: 'perfect',
+        fitScore: 100,
+        fitVerdict: 'Znakomity wybór! (100% dopasowania) – Prawidłowy akord',
+      };
+      return { matchedChoice: exactChoice, isSolved: true };
     }
 
-    // 2. What if step already had a selectedChoice (e.g. from row) and user played its notes?
-    if (step.selectedChoice) {
-      const targetPitchClasses = Array.from(
-        new Set(step.selectedChoice.chord.defaultNotes.map((n) => n.midi % 12))
-      ).sort((a, b) => a - b);
+    // 2. If not the exact target, detect what chord the user actually played
+    // so the C3-C6 header row can show the recognized chord name, but isSolved is strictly FALSE!
+    let detectedChord: { root: NoteName; quality: ChordQuality } | null = null;
 
-      if (
-        targetPitchClasses.length === selectedPitchClasses.length &&
-        targetPitchClasses.every((p, i) => p === selectedPitchClasses[i])
-      ) {
-        return { matchedChoice: step.selectedChoice, isSolved: true };
-      }
-    }
-
-    // 3. What if it's a recognized musical chord not in the 4 choices? Detect it!
     if (selectedPitchClasses.length >= 3) {
       for (const root of selectedPitchClasses) {
         const rootName = NOTE_NAMES[root];
@@ -1297,85 +1440,28 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         }
 
         if (quality) {
-          const chordDef = createChordDefinition(rootName, quality, 'Z klawiatury', 'Zagrany akord');
-          let fitScore = 70;
-          let fitTier: 'perfect' | 'good' | 'weak' = 'good';
-          let moodLabel = 'Harmonijny krok zagrany z klawiatury';
-          let fitVerdict = `Zagrany akord: ${convention === 'international' ? chordDef.symbol : chordDef.polishSymbol} (${fitScore}% dopasowania)`;
-
-          if (quality === 'augmented') {
-            fitScore = 84;
-            fitTier = 'good';
-            moodLabel = 'Akord zwiększony (aug / +) – Kosmiczne napięcie harmoniczne';
-            fitVerdict = `Świetny wybór! (84% dopasowania) – Tajemniczy kolor akordu zwiększonego (${convention === 'international' ? chordDef.symbol : chordDef.polishSymbol})`;
-          } else if (rootName === 'C' && quality === 'major') {
-            fitScore = 100;
-            fitTier = 'perfect';
-            moodLabel = 'Tonika (I) – Czysty punkt wyjścia';
-            fitVerdict = 'Znakomity wybór! (100% dopasowania) – Idealna baza progresji w C-dur';
-          } else if (rootName === 'G' && (quality === 'major' || quality === 'dom7')) {
-            fitScore = 98;
-            fitTier = 'perfect';
-            moodLabel = 'Dominanta (V) – Potężna energia kadencji';
-            fitVerdict = 'Świetny wybór! (98% dopasowania) – Klasyczna dominanta dążąca do C';
-          } else if (rootName === 'F' && (quality === 'major' || quality === 'maj7')) {
-            fitScore = 94;
-            fitTier = 'perfect';
-            moodLabel = 'Subdominanta (IV) – Ciepłe, przestrzenne uniesienie';
-            fitVerdict = 'Wspaniały wybór! (94% dopasowania) – Ciepła subdominanta';
-          } else if (rootName === 'A' && (quality === 'minor' || quality === 'min7')) {
-            fitScore = 96;
-            fitTier = 'perfect';
-            moodLabel = 'Paralela molowa (vi) – Melancholijny pop';
-            fitVerdict = 'Znakomity wybór! (96% dopasowania) – Najpopularniejszy krok po C w popie';
-          } else if (rootName === 'D' && (quality === 'minor' || quality === 'min7')) {
-            fitScore = 88;
-            fitTier = 'good';
-            moodLabel = 'Subdominanta molowa (ii) – Jazz i pop';
-            fitVerdict = 'Bardzo dobry wybór! (88% dopasowania) – Krok przygotowujący kadencję';
-          } else if (rootName === 'E' && (quality === 'minor' || quality === 'min7')) {
-            fitScore = 85;
-            fitTier = 'good';
-            moodLabel = 'Medianta (iii) – Pastelowy most molowy';
-            fitVerdict = 'Dobry wybór! (85% dopasowania) – Pastelowy most molowy';
-          } else if (quality === 'dom7' && ['D', 'E', 'A', 'C'].includes(rootName)) {
-            fitScore = 82;
-            fitTier = 'good';
-            moodLabel = 'Dominanta wtrącona – Barwne napięcie harmoniczne';
-            fitVerdict = 'Ciekawy wybór! (82% dopasowania) – Barwna dominanta wtrącona';
-          } else if (rootName === 'F' && quality === 'minor') {
-            fitScore = 82;
-            fitTier = 'good';
-            moodLabel = 'Zapożyczenie molowe (iv) – Emocjonalny twist kinowy';
-            fitVerdict = 'Dobry, ciekawy wybór! (82% dopasowania) – Magiczny melancholijny zwrot';
-          } else if (rootName === 'A#' && quality === 'major') {
-            fitScore = 80;
-            fitTier = 'good';
-            moodLabel = 'Subtonika (bVII) – Epicki rock';
-            fitVerdict = 'Dobry wybór! (80% dopasowania) – Epicki krok rockowo-filmowy';
-          } else {
-            fitScore = 40;
-            fitTier = 'weak';
-            moodLabel = 'Odległy akord chromatyczny';
-            fitVerdict = `Zagrany akord: ${convention === 'international' ? chordDef.symbol : chordDef.polishSymbol} (40% dopasowania) – Ostry kontrast tonalny`;
-          }
-
-          const dynamicChoice: QuizChoice = {
-            id: `played_${rootName}_${quality}_step_${step.stepIndex}`,
-            chord: chordDef,
-            degreeName: `${chordDef.functionDegree || ''} (${chordDef.polishSymbol})`,
-            moodLabel,
-            explanation: `Akord ${chordDef.polishSymbol} został ułożony i zagrany bezpośrednio na klawiaturze.`,
-            whyItWorks: fitScore >= 80 ? 'Świetnie współgra z tonacją i harmonicznym kontekstem progresji.' : 'Tworzy dysonans lub kontrast tonalny.',
-            isRecommended: fitScore >= 90,
-            fitTier,
-            fitScore,
-            fitVerdict,
-          };
-
-          return { matchedChoice: dynamicChoice, isSolved: true };
+          detectedChord = { root: rootName, quality };
+          break;
         }
       }
+    }
+
+    if (detectedChord) {
+      const chordDef = createChordDefinition(detectedChord.root, detectedChord.quality, 'Z klawiatury', 'Zagrany akord');
+      const dynamicChoice: QuizChoice = {
+        id: `played_${detectedChord.root}_${detectedChord.quality}_step_${step.stepIndex}`,
+        chord: chordDef,
+        degreeName: `${chordDef.functionDegree || ''} (${chordDef.polishSymbol})`,
+        moodLabel: 'Inny akord ułożony z klawiatury',
+        explanation: `Akord ${chordDef.polishSymbol} został ułożony na klawiaturze.`,
+        whyItWorks: 'Nie zgadza się z oczekiwanym akordem wzorca w tym kroku.',
+        isRecommended: false,
+        fitTier: 'weak',
+        fitScore: 50,
+        fitVerdict: `Zagrany akord: ${convention === 'international' ? chordDef.symbol : chordDef.polishSymbol}`,
+      };
+
+      return { matchedChoice: dynamicChoice, isSolved: false };
     }
 
     return { matchedChoice: null, isSolved: false };
@@ -1392,19 +1478,28 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           ? s.selectedMidis.filter((m) => m !== midi)
           : [...s.selectedMidis, midi];
 
-        // Evaluate whether the played MIDI notes match any chord
+        // 1. If all keys were unselected (empty keyboard):
+        if (updatedMidis.length === 0) {
+          return {
+            ...s,
+            selectedMidis: [],
+            highlightMap: {},
+            isSolved: false,
+            selectedChoice: null,
+          };
+        }
+
+        // 2. Evaluate whether the played MIDI notes match the target chord:
         const { matchedChoice, isSolved: isChordMatched } = evaluatePlayedChord(s, updatedMidis);
 
         if (isChordMatched && matchedChoice) {
           // Play celebration sound & confetti on newly matched chord
-          if (!s.isSolved || s.selectedChoice?.id !== matchedChoice.id) {
-            if (matchedChoice.fitScore >= 75) {
-              confetti({
-                particleCount: 50,
-                spread: 55,
-                origin: { y: 0.7 },
-              });
-            }
+          if (!s.isSolved) {
+            confetti({
+              particleCount: 50,
+              spread: 55,
+              origin: { y: 0.7 },
+            });
             sound.playChord(updatedMidis, 2.2, 0, 0.95);
           }
 
@@ -1422,34 +1517,26 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           };
         }
 
-        // If chord is not yet matched or in progress:
+        // 3. If chord is NOT matched or incomplete (e.g. 3 of 4 notes for 7th chord):
+        const targetPitchClasses = new Set(s.baseChord.defaultNotes.map((n) => n.midi % 12));
         const newHighlightMap: Record<number, 'correct' | 'incorrect' | 'hint' | 'active'> = {};
 
-        if (s.selectedChoice) {
-          const targetChord = s.selectedChoice.chord;
-          const targetPitchClasses = new Set(targetChord.defaultNotes.map((n) => n.midi % 12));
+        updatedMidis.forEach((m) => {
+          const matches = targetPitchClasses.has(m % 12);
+          newHighlightMap[m] = matches ? 'active' : 'incorrect';
+        });
 
-          updatedMidis.forEach((m) => {
-            const matches = targetPitchClasses.has(m % 12);
-            newHighlightMap[m] = matches ? 'correct' : 'incorrect';
-          });
-
-          if (s.showHint) {
-            targetChord.defaultNotes.forEach((n) => {
-              if (!newHighlightMap[n.midi]) {
-                newHighlightMap[n.midi] = 'hint';
-              }
-            });
-          }
-        } else {
-          // No choice selected yet: keep notes active in amber
-          updatedMidis.forEach((m) => {
-            newHighlightMap[m] = 'active';
+        if (s.showHint) {
+          s.baseChord.defaultNotes.forEach((n) => {
+            if (!newHighlightMap[n.midi]) {
+              newHighlightMap[n.midi] = 'hint';
+            }
           });
         }
 
         return {
           ...s,
+          selectedChoice: matchedChoice,
           selectedMidis: updatedMidis,
           highlightMap: newHighlightMap,
           isSolved: false,
@@ -1501,6 +1588,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   };
 
   // User Request: In the progression bar (pinned or unpinned), chords that are correctly selected turn font color from white to green
+  // User Request: Toggle between Roman notation (I, vi, IV, V) and concrete chord names (C, Am, F, G)
   const renderProgressionDegreeList = () => {
     // 1. If loadedKeyInfo has section division (e.g., "Zwrotka: ... | Refren: ...")
     if (loadedKeyInfo?.degrees && (loadedKeyInfo.degrees.includes('|') || loadedKeyInfo.degrees.includes(':'))) {
@@ -1522,6 +1610,15 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
               overallStepIdx++;
               const isCorrect = currentStep ? isStepCorrect(currentStep) : false;
 
+              const romanLabel = degToken;
+              const chordLabel = currentStep
+                ? convention === 'polish'
+                  ? currentStep.baseChord.polishSymbol
+                  : currentStep.baseChord.symbol
+                : degToken;
+
+              const displayLabel = progressionNotation === 'chords' ? chordLabel : romanLabel;
+
               return (
                 <React.Fragment key={`sec_step_${secIdx}_${dIdx}`}>
                   {dIdx > 0 && <span className="text-slate-600 font-normal select-none">–</span>}
@@ -1533,11 +1630,11 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                     }`}
                     title={
                       currentStep
-                        ? `Krok ${currentStep.stepIndex}: ${convention === 'polish' ? currentStep.baseChord.polishSymbol : currentStep.baseChord.symbol}${isCorrect ? ' (Zaliczony! ✓)' : ''}`
+                        ? `Krok ${currentStep.stepIndex}: ${chordLabel} (${romanLabel})${isCorrect ? ' (Zaliczony! ✓)' : ''}`
                         : degToken
                     }
                   >
-                    {degToken}
+                    {displayLabel}
                   </span>
                 </React.Fragment>
               );
@@ -1556,10 +1653,13 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
     return steps.map((step, idx) => {
       const isCorrect = isStepCorrect(step);
-      const label = useLoadedTokens
+      const romanLabel = useLoadedTokens
         ? rawTokens[idx]
         : (step.baseChord.functionDegree ? formatDegreeLabel(step.baseChord.functionDegree) : '') ||
-          (convention === 'polish' ? step.baseChord.polishSymbol : step.baseChord.symbol);
+          `Krok ${step.stepIndex}`;
+
+      const chordLabel = convention === 'polish' ? step.baseChord.polishSymbol : step.baseChord.symbol;
+      const displayLabel = progressionNotation === 'chords' ? chordLabel : romanLabel;
 
       return (
         <React.Fragment key={`prog_item_${step.stepIndex}`}>
@@ -1570,9 +1670,9 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                 ? 'text-emerald-400 font-black drop-shadow-[0_0_8px_rgba(52,211,153,0.45)]'
                 : 'text-white font-bold'
             }`}
-            title={`Krok ${step.stepIndex}: ${convention === 'polish' ? step.baseChord.polishSymbol : step.baseChord.symbol}${isCorrect ? ' (Zaliczony! ✓)' : ''}`}
+            title={`Krok ${step.stepIndex}: ${chordLabel} (${romanLabel})${isCorrect ? ' (Zaliczony! ✓)' : ''}`}
           >
-            {label}
+            {displayLabel}
           </span>
         </React.Fragment>
       );
@@ -1717,6 +1817,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           >
             12 Akordów (Blues)
           </button>
+
+          {/* User Request: Generator w locie z rozbudowanymi akordami (6, sus, aug, dim, add9) */}
+          <button
+            type="button"
+            onClick={handleQuickGenerateExtended}
+            className="px-2.5 py-1 text-[11px] font-black rounded-xl cursor-pointer transition-all shrink-0 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 flex items-center gap-1.5 shadow-md active:scale-95"
+            title="Wygeneruj w locie nową progresję z rozbudowanymi akordami (sus2, sus4, 6, m6, aug, dim, add9)"
+          >
+            <Wand2 className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Generator w locie</span>
+          </button>
+
           <button
             type="button"
             onClick={handleAddStep}
@@ -1860,67 +1972,98 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         data-tonality-bar="true"
         style={{
           position: isTonalityBarPinned ? 'sticky' : undefined,
-          top: isTonalityBarPinned ? 'var(--app-header-height, 90px)' : undefined,
+          top: isTonalityBarPinned ? 0 : undefined,
           zIndex: isTonalityBarPinned ? 35 : undefined,
-          scrollMarginTop: 'calc(var(--app-header-height, 90px) + 14px)',
+          scrollMarginTop: '0px',
         }}
         className={`flex flex-col gap-1.5 px-3.5 py-2.5 rounded-2xl transition-all duration-200 ${
           isTonalityBarPinned
-            ? 'shadow-2xl bg-slate-900/98 backdrop-blur-md border-2 border-amber-400 ring-2 ring-amber-400/40'
+            ? 'shadow-2xl bg-slate-950/98 backdrop-blur-md border-2 border-amber-400 ring-2 ring-amber-400/40'
             : 'bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg'
         }`}
       >
-        {/* ROW 1: Tonality + Pin/Unpin Button right next to it, and quick actions on the right */}
-        <div className="flex items-center justify-between gap-2">
-          <div className="flex items-center gap-2 min-w-0">
-            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30 shrink-0">
-              <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
-              <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
-            </div>
+        {/* ROW 1: All action buttons in ONE single clean row */}
+        <div className="flex items-center gap-1.5 flex-wrap">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30 shrink-0">
+            <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
+            <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
+          </div>
 
-            {/* User Request 2: Button 'przypnij / odepnij' directly next to the tonality label */}
+          {/* User Request 2: Button 'przypnij / odepnij' directly next to the tonality label */}
+          <button
+            type="button"
+            onClick={handleTogglePinTonalityBar}
+            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
+              isTonalityBarPinned
+                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/25 font-black'
+                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80'
+            }`}
+            title={isTonalityBarPinned ? 'Odepnij belkę tonacji (drugie naciśnięcie odpina)' : 'Przypnij belkę tonacji pod kartami nawigacji podczas scrollowania'}
+          >
+            {isTonalityBarPinned ? (
+              <>
+                <PinOff className="w-3.5 h-3.5" />
+                <span>Odepnij</span>
+              </>
+            ) : (
+              <>
+                <Pin className="w-3.5 h-3.5 text-amber-400" />
+                <span>Przypnij</span>
+              </>
+            )}
+          </button>
+
+          {/* User Request: Button to toggle Roman numerals to concrete chords and back */}
+          <button
+            type="button"
+            onClick={handleToggleProgressionNotation}
+            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
+              progressionNotation === 'chords'
+                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/25 font-black'
+                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80'
+            }`}
+            title={
+              progressionNotation === 'roman'
+                ? 'Zamień zapis rzymski na konkretne akordy w tej tonacji'
+                : 'Przywróć zapis rzymski progresji (I, IV, V...)'
+            }
+          >
+            <ArrowLeftRight className={`w-3.5 h-3.5 ${progressionNotation === 'chords' ? 'text-slate-950' : 'text-amber-400'}`} />
+            <span>
+              {progressionNotation === 'roman' ? 'Pokaż akordy' : 'Pokaż rzymskie'}
+            </span>
+          </button>
+
+          {/* Quick Randomize / Transpose Tonality button in workshop */}
+          <button
+            type="button"
+            onClick={handleRandomizeWorkshopKey}
+            className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 bg-amber-400/20 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/40"
+            title="Wylosuj nową tonację dla tego ćwiczenia – wszystkie akordy automatycznie się dostosują!"
+          >
+            <Shuffle className="w-3.5 h-3.5" />
+            <span>Losuj tonację</span>
+          </button>
+
+          {/* User Request 3: Przycisk Reset w jednym rzędzie z pozostałymi przyciskami */}
+          {loadedProgression && onClearLoadedProgression && (
             <button
               type="button"
-              onClick={handleTogglePinTonalityBar}
-              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 ${
-                isTonalityBarPinned
-                  ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/25 font-black'
-                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80'
-              }`}
-              title={isTonalityBarPinned ? 'Odepnij belkę tonacji (drugie naciśnięcie odpina)' : 'Przypnij belkę tonacji pod kartami nawigacji podczas scrollowania'}
+              onClick={onClearLoadedProgression}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 text-slate-300 hover:text-rose-200 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30"
+              title="Przywróć domyślne 4 akordy"
             >
-              {isTonalityBarPinned ? (
-                <>
-                  <PinOff className="w-3.5 h-3.5" />
-                  <span>Odepnij</span>
-                </>
-              ) : (
-                <>
-                  <Pin className="w-3.5 h-3.5 text-amber-400" />
-                  <span>Przypnij</span>
-                </>
-              )}
+              <RotateCcw className="w-3 h-3 text-rose-400" />
+              <span>Reset</span>
             </button>
-          </div>
-
-          <div className="flex items-center gap-1.5 shrink-0">
-            {loadedProgression && onClearLoadedProgression && (
-              <button
-                type="button"
-                onClick={onClearLoadedProgression}
-                className="px-2 py-1 text-[11px] font-semibold text-slate-400 hover:text-rose-300 hover:bg-rose-500/10 border border-slate-700/60 hover:border-rose-500/30 rounded-xl transition-all cursor-pointer flex items-center gap-1"
-                title="Przywróć domyślne 4 akordy"
-              >
-                <RotateCcw className="w-3 h-3" />
-                <span>Reset</span>
-              </button>
-            )}
-          </div>
+          )}
         </div>
 
         {/* ROW 2: Complete Progression Display with individual chord highlight */}
         <div className="flex items-start gap-1.5 text-xs min-w-0">
-          <span className="text-slate-400 text-[11px] shrink-0 font-semibold pt-0.5">Progresja:</span>
+          <span className="text-slate-400 text-[11px] shrink-0 font-semibold pt-0.5">
+            {progressionNotation === 'chords' ? 'Akordy:' : 'Progresja:'}
+          </span>
           <div className="font-mono bg-slate-950 px-2.5 py-1 rounded-lg border border-amber-500/35 text-[11px] sm:text-xs shadow-sm break-words whitespace-normal leading-relaxed w-full flex flex-wrap items-center gap-x-1.5 gap-y-1">
             {renderProgressionDegreeList()}
           </div>
@@ -2029,6 +2172,19 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                           <span>+4 Alternatywy</span>
                         </>
                       )}
+                    </button>
+                  )}
+
+                  {/* Reset/Clear this step (keys and selected choice) */}
+                  {(step.selectedChoice || step.selectedMidis.length > 0) && (
+                    <button
+                      type="button"
+                      onClick={() => handleResetSingleStep(step.stepIndex)}
+                      className="px-1.5 py-0.5 text-[10px] font-semibold text-rose-300 hover:text-rose-100 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30 rounded transition-colors cursor-pointer flex items-center gap-1 active:scale-95"
+                      title="Wyczyść ten krok (klawisze i wybór akordu)"
+                    >
+                      <RotateCcw className="w-2.5 h-2.5" />
+                      <span>Wyczyść</span>
                     </button>
                   )}
 
@@ -2244,63 +2400,6 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                 />
               </div>
 
-              {/* Mini Status Footer */}
-              <div className="mt-1 px-1 flex items-center justify-between text-[11px] text-slate-400">
-                {step.isSolved ? (
-                  <span className="text-emerald-400 font-bold flex items-center gap-1.5">
-                    <Check className="w-3.5 h-3.5 stroke-[3]" />
-                    <span>
-                      Akord <strong>{convention === 'international' ? step.selectedChoice?.chord.symbol : step.selectedChoice?.chord.polishSymbol}</strong> poprawnie zaliczony! ({step.selectedChoice?.fitScore}% dopasowania)
-                    </span>
-                  </span>
-                ) : step.selectedChoice ? (
-                  <span>
-                    Zaznacz klawisze akordu <strong>{convention === 'international' ? step.selectedChoice.chord.symbol : step.selectedChoice.chord.polishSymbol}</strong> ({step.selectedMidis.length}/{step.selectedChoice.chord.defaultNotes.length})
-                  </span>
-                ) : hideChordChoices ? (
-                  <span className="text-amber-400/90 font-medium flex items-center gap-1">
-                    <Sparkles className="w-3 h-3 text-amber-400" />
-                    Tryb bez podpowiedzi – ułóż i zagraj kolejny akord bezpośrednio na klawiaturze!
-                  </span>
-                ) : (
-                  <span className="text-slate-400">
-                    Wybierz akord powyżej lub zagraj na klawiaturze
-                  </span>
-                )}
-
-                {step.selectedChoice || step.selectedMidis.length > 0 ? (
-                  <div className="flex items-center gap-2">
-                    {step.selectedChoice && (
-                      <span className="text-slate-500 font-mono text-[10px] hidden sm:inline">
-                        {step.selectedChoice.chord.defaultNotes.map((n) => n.note).join(' · ')}
-                      </span>
-                    )}
-                    <button
-                      type="button"
-                      onClick={() =>
-                        setSteps((prev) =>
-                          prev.map((s) =>
-                            s.stepIndex === step.stepIndex
-                              ? {
-                                  ...s,
-                                  selectedChoice: null,
-                                  selectedMidis: [],
-                                  highlightMap: {},
-                                  isSolved: false,
-                                }
-                              : s
-                          )
-                        )
-                      }
-                      className="text-slate-400 hover:text-rose-400 text-[10px] cursor-pointer flex items-center gap-1 px-1.5 py-0.5 rounded hover:bg-rose-500/10 transition-colors"
-                      title="Wyczyść klawisze i wybierz lub zagraj inny akord"
-                    >
-                      <RotateCcw className="w-2.5 h-2.5" />
-                      <span>Wyczyść / Wybierz inny</span>
-                    </button>
-                  </div>
-                ) : null}
-              </div>
             </div>
           );
         })}

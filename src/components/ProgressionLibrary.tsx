@@ -33,7 +33,14 @@ import {
   Search,
   Shuffle,
   Dice5,
+  Wand2,
+  Trash2,
 } from 'lucide-react';
+import { SmartProgressionGenerator } from './SmartProgressionGenerator';
+import {
+  getSavedCustomProgressions,
+  deleteCustomProgression,
+} from '../utils/progressionGenerator';
 
 export interface LoadedProgressionMetadata {
   keyName: string;
@@ -330,6 +337,29 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     }
   }, [loadedProgressionId]);
 
+  // User generated custom progressions saved in localStorage
+  const [customProgressions, setCustomProgressions] = useState<FamousProgression[]>(() =>
+    getSavedCustomProgressions()
+  );
+
+  const handleReloadCustomProgressions = () => {
+    setCustomProgressions(getSavedCustomProgressions());
+  };
+
+  useEffect(() => {
+    const handleUpdate = () => handleReloadCustomProgressions();
+    window.addEventListener('harmonix:custom-progressions-updated', handleUpdate);
+    window.addEventListener('storage', handleUpdate);
+    return () => {
+      window.removeEventListener('harmonix:custom-progressions-updated', handleUpdate);
+      window.removeEventListener('storage', handleUpdate);
+    };
+  }, []);
+
+  const allProgressions = useMemo(() => {
+    return [...customProgressions, ...FAMOUS_PROGRESSIONS];
+  }, [customProgressions]);
+
   // When switching to the Wzorce tab, smoothly scroll the view to the loaded progression
   const prevActiveViewRef = useRef(isActiveView);
   useEffect(() => {
@@ -340,7 +370,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       const targetId = loadedProgressionId || lastLoadedProgressionId;
       if (targetId) {
         // Ensure the loaded progression is visible by resetting genre/search if it was filtered out
-        const targetProg = FAMOUS_PROGRESSIONS.find((p) => p.id === targetId);
+        const targetProg = allProgressions.find((p) => p.id === targetId);
         if (targetProg && selectedGenre !== 'all' && !targetProg.genre.toLowerCase().includes(selectedGenre.toLowerCase())) {
           setSelectedGenre('all');
         }
@@ -351,7 +381,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
         scrollToLoadedProgressionCard(targetId);
       }
     }
-  }, [isActiveView, loadedProgressionId, lastLoadedProgressionId, selectedGenre, searchQuery]);
+  }, [isActiveView, loadedProgressionId, lastLoadedProgressionId, selectedGenre, searchQuery, allProgressions]);
 
   // Set of progression IDs for which chords are currently revealed
   // DEFAULT: empty set (all hidden by default as requested!)
@@ -383,7 +413,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   };
 
   const handleRevealAllChords = () => {
-    setRevealedCardIds(new Set(FAMOUS_PROGRESSIONS.map((p) => p.id)));
+    setRevealedCardIds(new Set(allProgressions.map((p) => p.id)));
   };
 
   const handleHideAllChords = () => {
@@ -584,11 +614,35 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     setOpenCardKeyPickerId(null);
   };
 
-  const genres = ['all', 'Pop', 'Rock', 'Film', 'Jazz', 'Blues', 'Neo-Soul', 'Klasyka'];
+  const genres = [
+    'all',
+    'Rozbudowane akordy',
+    'Moje wygenerowane',
+    'Pop',
+    'Rock',
+    'Film',
+    'Jazz',
+    'Blues',
+    'Neo-Soul',
+    'Klasyka',
+  ];
 
   const filteredProgressions = useMemo(() => {
-    const list = FAMOUS_PROGRESSIONS.filter((prog) => {
-      if (selectedGenre !== 'all' && !prog.genre.toLowerCase().includes(selectedGenre.toLowerCase())) {
+    const list = allProgressions.filter((prog) => {
+      if (selectedGenre === 'Rozbudowane akordy') {
+        const hasExtended = prog.steps.some(
+          (s) =>
+            s.symbol.includes('add9') ||
+            s.symbol.includes('sus') ||
+            s.symbol.includes('6') ||
+            s.symbol.includes('aug') ||
+            s.symbol.includes('dim')
+        );
+        if (!hasExtended) return false;
+      } else if (selectedGenre === 'Moje wygenerowane') {
+        const isCustom = customProgressions.some((c) => c.id === prog.id);
+        if (!isCustom) return false;
+      } else if (selectedGenre !== 'all' && !prog.genre.toLowerCase().includes(selectedGenre.toLowerCase())) {
         return false;
       }
       if (selectedType === 'progression' && isProgressionFullSong(prog)) {
@@ -630,7 +684,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     }
 
     return list;
-  }, [selectedGenre, selectedType, searchQuery, lastLoadedProgressionId]);
+  }, [allProgressions, customProgressions, selectedGenre, selectedType, searchQuery, lastLoadedProgressionId]);
 
   // Popular key presets
   const popularMajorKeys: NoteName[] = ['C', 'G', 'D', 'F', 'A', 'E', 'B'];
@@ -819,6 +873,16 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
         </div>
       </div>
 
+      {/* Smart Harmonic Progression Generator (On-the-fly composer for extended chords: sus2, sus4, 6, m6, aug, dim, add9) */}
+      <SmartProgressionGenerator
+        convention={convention}
+        currentKeyRoot={globalKeyRoot}
+        currentMode={globalKeyMode}
+        onLoadProgression={onLoadProgression}
+        onProgressionSaved={handleReloadCustomProgressions}
+        onKeyChange={handleTonalityChange}
+      />
+
       {/* Search & Filter Toolbar */}
       <div className="flex flex-col md:flex-row md:items-center justify-between gap-3 bg-slate-900/60 p-3 rounded-2xl border border-slate-800/80">
         {/* Search input */}
@@ -938,6 +1002,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
           const formulaInfo = getProgressionRomanFormula(prog);
           const diff = calculateProgressionDifficulty(prog);
           const isFullSong = isProgressionFullSong(prog);
+          const isCustom = customProgressions.some((c) => c.id === prog.id);
 
           const isCurrentLoadedProg = prog.id === (loadedProgressionId || lastLoadedProgressionId);
           const relevantResults = isCurrentLoadedProg ? workshopResults || {} : {};
@@ -1048,6 +1113,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
                           <span>Aktywny w warsztacie (#1)</span>
                         </span>
                       )}
+                      {isCustom && (
+                        <span className="text-[10px] font-black text-amber-300 bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                          <Wand2 className="w-2.5 h-2.5" />
+                          <span>Wygenerowany w locie</span>
+                        </span>
+                      )}
                       <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">
                         {prog.genre}
                       </span>
@@ -1134,23 +1205,38 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
                     )}
                   </div>
 
-                  <button
-                    type="button"
-                    onClick={() => handlePlayProg(prog)}
-                    disabled={isPlaying}
-                    className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border shrink-0 ${
-                      isPlaying
-                        ? 'bg-amber-400 text-slate-950 border-amber-400 animate-pulse'
-                        : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95'
-                    }`}
-                  >
-                    {isPlaying ? (
-                      <Square className="w-3.5 h-3.5 fill-current" />
-                    ) : (
-                      <Play className="w-3.5 h-3.5 fill-current" />
+                  <div className="flex items-center gap-1.5 shrink-0">
+                    {isCustom && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          deleteCustomProgression(prog.id);
+                          handleReloadCustomProgressions();
+                        }}
+                        className="p-1.5 text-slate-500 hover:text-rose-400 hover:bg-rose-500/10 rounded-xl transition-colors cursor-pointer border border-transparent hover:border-rose-500/30"
+                        title="Usuń ten wygenerowany wzorzec z listy"
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                      </button>
                     )}
-                    <span>{isPlaying ? 'Gra...' : 'Odsłuchaj'}</span>
-                  </button>
+                    <button
+                      type="button"
+                      onClick={() => handlePlayProg(prog)}
+                      disabled={isPlaying}
+                      className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer border shrink-0 ${
+                        isPlaying
+                          ? 'bg-amber-400 text-slate-950 border-amber-400 animate-pulse'
+                          : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 active:scale-95'
+                      }`}
+                    >
+                      {isPlaying ? (
+                        <Square className="w-3.5 h-3.5 fill-current" />
+                      ) : (
+                        <Play className="w-3.5 h-3.5 fill-current" />
+                      )}
+                      <span>{isPlaying ? 'Gra...' : 'Odsłuchaj'}</span>
+                    </button>
+                  </div>
                 </div>
 
                 <p className="text-xs text-slate-300 leading-relaxed mb-3">
@@ -1325,20 +1411,39 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
                     )}
                   </div>
 
-                  {/* Load into workshop button */}
-                  <button
-                    type="button"
-                    onClick={() => handleLoad(prog)}
-                    className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md active:scale-95 ${
-                      isLastLoaded
-                        ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300 shadow-amber-400/20'
-                        : 'text-slate-950 bg-amber-400 hover:bg-amber-300'
-                    }`}
-                    title="Wstaw ten schemat do warsztatu progresji"
-                  >
-                    <Sparkles className="w-3.5 h-3.5" />
-                    <span>{isLastLoaded ? `Załadowany do warsztatu (#1) · ${tonalityLabel}` : `Wstaw do warsztatu (${tonalityLabel})`}</span>
-                  </button>
+                  {/* Action Buttons: Randomize Tonality & Load into Workshop */}
+                  <div className="flex flex-col gap-1.5 w-full sm:w-auto">
+                    {/* User Request 4: Randomize tonality button directly above load button */}
+                    <button
+                      type="button"
+                      onClick={() => {
+                        handleRandomizeGlobalKey();
+                        if (hasOverride) {
+                          handleResetCardKey(prog.id);
+                        }
+                      }}
+                      className="flex items-center justify-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl bg-amber-400/15 hover:bg-amber-400 text-amber-300 hover:text-slate-950 border border-amber-400/40 cursor-pointer transition-all active:scale-95 shadow-sm"
+                      title="Wylosuj nową tonację (bez konieczności przewijania do góry strony)"
+                    >
+                      <Dice5 className="w-3.5 h-3.5" />
+                      <span>Losuj nową tonację</span>
+                    </button>
+
+                    {/* Load into workshop button */}
+                    <button
+                      type="button"
+                      onClick={() => handleLoad(prog)}
+                      className={`flex items-center justify-center gap-1.5 px-3.5 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md active:scale-95 ${
+                        isLastLoaded
+                          ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300 shadow-amber-400/20'
+                          : 'text-slate-950 bg-amber-400 hover:bg-amber-300'
+                      }`}
+                      title="Wstaw ten schemat do warsztatu progresji"
+                    >
+                      <Sparkles className="w-3.5 h-3.5" />
+                      <span>{isLastLoaded ? `Załadowany do warsztatu (#1) · ${tonalityLabel}` : `Wstaw do warsztatu (${tonalityLabel})`}</span>
+                    </button>
+                  </div>
                 </div>
 
                 {/* Inline 12-key picker for this individual card when opened */}

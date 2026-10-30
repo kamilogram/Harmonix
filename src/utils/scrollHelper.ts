@@ -33,19 +33,31 @@ export function scrollToFirstPianoKeyboard(retries = 15) {
  */
 export function scrollToLoadedProgressionCard(progressionId?: string | null, retries = 15) {
   const tryScroll = (attemptsLeft: number) => {
+    const panel = document.getElementById('tabpanel-library');
     const el =
       (progressionId && document.getElementById(`progression-card-${progressionId}`)) ||
       (progressionId && document.querySelector(`[data-progression-id="${progressionId}"]`)) ||
       document.querySelector('[data-loaded-progression="true"]') ||
       document.querySelector('[data-first-progression-card="true"]');
 
-    if (el) {
+    if (panel && el) {
+      const panelRect = panel.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const targetY = panel.scrollTop + (elRect.top - panelRect.top) - panelRect.height / 3;
+      panel.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+      el.classList.add('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/30');
+      setTimeout(() => {
+        el.classList.remove('shadow-2xl', 'shadow-amber-500/30');
+      }, 2000);
+    } else if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
         inline: 'nearest',
       });
-      // Add a subtle flash animation to bring immediate attention
       el.classList.add('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/30');
       setTimeout(() => {
         el.classList.remove('shadow-2xl', 'shadow-amber-500/30');
@@ -55,7 +67,6 @@ export function scrollToLoadedProgressionCard(progressionId?: string | null, ret
     }
   };
 
-  // Small delay to allow tab display transition from hidden to block
   setTimeout(() => {
     requestAnimationFrame(() => tryScroll(retries));
   }, 60);
@@ -67,18 +78,30 @@ export function scrollToLoadedProgressionCard(progressionId?: string | null, ret
  */
 export function scrollToTonalityProgressionBar(retries = 15) {
   const tryScroll = (attemptsLeft: number) => {
+    const panel = document.getElementById('tabpanel-workshop');
     const el =
       document.getElementById('workshop-tonality-progression-bar') ||
       document.querySelector('[data-tonality-bar="true"]') ||
       document.getElementById('first-piano-keyboard-container');
 
-    if (el) {
+    if (panel && el) {
+      const panelRect = panel.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const targetY = panel.scrollTop + (elRect.top - panelRect.top) - 10;
+      panel.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+      el.classList.add('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
+      }, 1800);
+    } else if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'start',
         inline: 'nearest',
       });
-      // Flash highlight animation on the tonality bar to draw immediate attention
       el.classList.add('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
       setTimeout(() => {
         el.classList.remove('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
