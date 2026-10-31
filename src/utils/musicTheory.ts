@@ -2053,49 +2053,85 @@ export function parseChordSymbol(symbol: string): { root: NoteName; quality: Cho
     clean = clean.split('/')[0].trim();
   }
 
-  let rootStr = '';
-  let rest = '';
-
-  if (clean.length >= 2 && (clean[1] === '#' || clean[1] === 'b')) {
-    rootStr = clean.slice(0, 2);
-    rest = clean.slice(2);
-  } else {
-    rootStr = clean.slice(0, 1);
-    rest = clean.slice(1);
-  }
-
-  // Normalize enharmonic names and flats to sharp NoteNames
-  const enharmonics: Record<string, NoteName> = {
-    'Db': 'C#',
-    'Eb': 'D#',
-    'Gb': 'F#',
-    'Ab': 'G#',
-    'Bb': 'A#',
-    'Cis': 'C#',
-    'Dis': 'D#',
-    'Fis': 'F#',
-    'Gis': 'G#',
-    'Ais': 'A#',
-    'H': 'B',
+  // Polish 3-letter roots (case-insensitive)
+  const polish3Map: Record<string, NoteName> = {
+    'cis': 'C#',
+    'dis': 'D#',
+    'fis': 'F#',
+    'gis': 'G#',
+    'ais': 'A#',
+    'des': 'C#',
+    'ges': 'F#',
   };
 
-  const root: NoteName = (enharmonics[rootStr] || rootStr) as NoteName;
+  // 2-letter roots (sharps, flats, Polish 2-letter like 'es', 'as')
+  const twoCharMap: Record<string, NoteName> = {
+    'c#': 'C#',
+    'd#': 'D#',
+    'f#': 'F#',
+    'g#': 'G#',
+    'a#': 'A#',
+    'db': 'C#',
+    'eb': 'D#',
+    'gb': 'F#',
+    'ab': 'G#',
+    'bb': 'A#',
+    'es': 'D#',
+    'as': 'G#',
+  };
+
+  // 1-letter roots
+  const oneCharMap: Record<string, NoteName> = {
+    'c': 'C',
+    'd': 'D',
+    'e': 'E',
+    'f': 'F',
+    'g': 'G',
+    'a': 'A',
+    'h': 'B',
+    'b': 'B',
+  };
+
+  let root: NoteName = 'C';
+  let rest = '';
+
+  const prefix3 = clean.slice(0, 3).toLowerCase();
+  const prefix2 = clean.slice(0, 2).toLowerCase();
+  const prefix1 = clean.slice(0, 1).toLowerCase();
+
+  if (clean.length >= 3 && polish3Map[prefix3]) {
+    root = polish3Map[prefix3];
+    rest = clean.slice(3);
+  } else if (clean.length >= 2 && twoCharMap[prefix2]) {
+    root = twoCharMap[prefix2];
+    rest = clean.slice(2);
+  } else if (clean.length >= 1 && oneCharMap[prefix1]) {
+    root = oneCharMap[prefix1];
+    rest = clean.slice(1);
+  } else {
+    root = 'C';
+    rest = clean;
+  }
+
+  // Strip leading hyphens or spaces (e.g. "-dur", "-moll", " dur", " moll")
+  rest = rest.replace(/^[\s-]+/, '').trim().toLowerCase();
 
   let quality: ChordQuality = 'major';
   if (rest === 'm7b5' || rest === 'ø' || rest === 'ø7') quality = 'm7b5';
-  else if (rest === 'm7' || rest === 'min7') quality = 'min7';
-  else if (rest === 'maj7' || rest === 'M7' || rest === 'Maj7') quality = 'maj7';
+  else if (rest === 'm7' || rest === 'min7' || rest === 'moll7') quality = 'min7';
+  else if (rest === 'maj7' || rest === 'm7' && clean.toLowerCase().includes('maj') || rest === 'dur7') quality = 'maj7';
   else if (rest === '7sus4' || rest === 'dom7sus4') quality = 'dom7sus4';
   else if (rest === '7' || rest === 'dom7') quality = 'dom7';
-  else if (rest === 'm' || rest === 'min') quality = 'minor';
+  else if (rest === 'm' || rest === 'min' || rest === 'moll' || rest.startsWith('moll')) quality = 'minor';
   else if (rest === 'dim' || rest === '°') quality = 'diminished';
   else if (rest === 'dim7' || rest === '°7') quality = 'dim7';
   else if (rest === 'aug' || rest === '+' || rest === 'augmented' || rest === 'aug7' || rest === '+7' || rest === '7#5') quality = 'augmented';
   else if (rest === 'sus4') quality = 'sus4';
   else if (rest === 'sus2') quality = 'sus2';
   else if (rest === 'add9' || rest === '9') quality = 'add9';
-  else if (rest === 'm6') quality = 'minor6';
+  else if (rest === 'm6' || rest === 'min6' || rest === 'moll6') quality = 'minor6';
   else if (rest === '6') quality = 'major6';
+  else if (rest === 'dur' || rest.startsWith('dur')) quality = 'major';
 
   return { root, quality };
 }

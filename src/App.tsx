@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useEffect } from 'react';
+import React, { useState, useCallback, useEffect, useMemo } from 'react';
 import {
   ChordDefinition,
   QuizChoice,
@@ -72,7 +72,37 @@ export default function App() {
     } catch {}
   }, []);
 
-  const handleLoadFromLibrary = (chords: ChordDefinition[], metadata?: LoadedProgressionMetadata) => {
+  const activeKeyLabel = useMemo(() => {
+    if (loadedProgression && loadedProgression.length > 0) {
+      const tonicStep = loadedProgression.find((c) => {
+        const d = c.functionDegree?.trim() || '';
+        return (
+          d === 'I' ||
+          d === 'i' ||
+          d.startsWith('I ') ||
+          d.startsWith('i ') ||
+          d.startsWith('I(') ||
+          d.startsWith('i(') ||
+          d.startsWith('Imaj') ||
+          d.startsWith('I7') ||
+          d.startsWith('i7')
+        ) && !d.startsWith('IV') && !d.startsWith('iv');
+      });
+      const root = tonicStep ? tonicStep.root : (loadedKeyInfo?.root || loadedProgression[0].root);
+      const mode = tonicStep
+        ? (tonicStep.functionDegree?.startsWith('i') || tonicStep.quality === 'minor' || tonicStep.quality === 'min7' ? 'minor' : 'major')
+        : (loadedKeyInfo?.mode || 'major');
+      const label = getNoteLabel(root, convention);
+      return convention === 'polish' ? `${label}-${mode === 'minor' ? 'moll' : 'dur'}` : `${label}${mode === 'minor' ? 'm' : ''}`;
+    }
+    return loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C');
+  }, [loadedProgression, loadedKeyInfo, convention]);
+
+  const handleLoadFromLibrary = (
+    chords: ChordDefinition[],
+    metadata?: LoadedProgressionMetadata,
+    options?: { skipScrollToTonalityBar?: boolean }
+  ) => {
     setLoadedProgression(chords);
     setLoadedKeyInfo(metadata || null);
     if (metadata?.progId) {
@@ -86,7 +116,9 @@ export default function App() {
     if (metadata?.progName) {
       recordPatternLoad(metadata.progName, metadata.keyName, metadata.degrees);
     }
-    scrollToTonalityProgressionBar();
+    if (!options?.skipScrollToTonalityBar) {
+      scrollToTonalityProgressionBar();
+    }
   };
 
   const handleViewChange = useCallback((view: 'workshop' | 'library' | 'circle' | 'sandbox') => {
@@ -180,7 +212,7 @@ export default function App() {
                   <div className="flex items-center gap-1.5 ml-1">
                     <span className="text-xs text-slate-400">Tonacja ćwiczenia:</span>
                     <span className="px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs shadow-sm">
-                      {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}
+                      {activeKeyLabel}
                     </span>
                     {loadedKeyInfo?.progName && (
                       <span className="text-[11px] text-amber-300/80 font-medium hidden md:inline">

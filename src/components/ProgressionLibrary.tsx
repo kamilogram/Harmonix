@@ -425,7 +425,34 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
 
   // Helper to determine original base root of a progression
   const getProgressionOriginalRoot = (prog: FamousProgression): NoteName => {
-    const match = prog.key.trim().match(/^([A-G][#b]?|H|Cis|Dis|Fis|Gis|Ais)/i);
+    // 1. Check if any step explicitly declares tonic degree (I, i, Imaj7, I7, i7, etc.)
+    const tonicStep = prog.steps.find((st) => {
+      const d = st.degree.trim();
+      return (
+        d === 'I' ||
+        d === 'i' ||
+        d.startsWith('I ') ||
+        d.startsWith('i ') ||
+        d.startsWith('I(') ||
+        d.startsWith('i(') ||
+        d.startsWith('Imaj') ||
+        d.startsWith('I7') ||
+        d.startsWith('i7')
+      ) && !d.startsWith('IV') && !d.startsWith('iv');
+    });
+
+    if (tonicStep) {
+      const parsed = parseChordSymbol(tonicStep.symbol);
+      if (parsed.root) return parsed.root;
+    }
+
+    // 2. Otherwise parse from prog.key
+    const parsedKey = parseChordSymbol(prog.key);
+    if (parsedKey && parsedKey.root) {
+      return parsedKey.root;
+    }
+
+    const match = prog.key.trim().match(/^([A-Za-z#]+)/i);
     if (match) {
       const parsed = parseChordSymbol(match[1]);
       return parsed.root;
@@ -438,7 +465,19 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
 
   // Check if a progression is natively minor
   const isProgressionMinor = (prog: FamousProgression): boolean => {
-    return prog.key.toLowerCase().includes('moll') || Boolean(prog.steps[0]?.symbol.endsWith('m')) || Boolean(prog.steps[0]?.symbol.endsWith('m7'));
+    const k = prog.key.toLowerCase();
+    if (k.includes('moll') || k.includes('minor') || k.endsWith('m')) return true;
+    const tonicStep = prog.steps.find((st) => {
+      const d = st.degree.trim();
+      return (d === 'I' || d === 'i' || d.startsWith('I') || d.startsWith('i')) && !d.startsWith('IV') && !d.startsWith('iv');
+    });
+    if (tonicStep) {
+      const d = tonicStep.degree.trim();
+      if (d === 'i' || d.startsWith('i')) return true;
+      const parsed = parseChordSymbol(tonicStep.symbol);
+      if (parsed.quality === 'minor' || parsed.quality === 'min7' || parsed.quality === 'minor6' || parsed.quality === 'm7b5') return true;
+    }
+    return Boolean(prog.steps[0]?.symbol.endsWith('m')) || Boolean(prog.steps[0]?.symbol.endsWith('m7'));
   };
 
   // Get active key root for a given progression (custom override or global)
@@ -484,6 +523,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       const oldRootIdx = NOTE_NAMES.indexOf(parsed.root);
       const newRoot = NOTE_NAMES[(oldRootIdx + semitonesDelta) % 12];
       const chord = createChordDefinition(newRoot, parsed.quality, st.degree, st.role);
+      chord.section = st.section;
 
       let displaySymbol = chord.symbol;
       if (convention === 'polish') {

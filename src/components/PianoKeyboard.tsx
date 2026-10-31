@@ -2,7 +2,7 @@ import React, { useEffect, useState, useMemo, useRef, useCallback } from 'react'
 import { NoteName, NamingConvention, ChordFitTier } from '../types/music';
 import { NOTE_NAMES, getNoteLabel, getFullNoteLabel } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
-import { ChevronLeft, ChevronRight, Crosshair } from 'lucide-react';
+import { Crosshair } from 'lucide-react';
 
 export interface KeyInfo {
   midi: number;
@@ -95,8 +95,6 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
 }) => {
   const [pressedMidis, setPressedMidis] = useState<Set<number>>(new Set());
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [canScrollLeft, setCanScrollLeft] = useState(false);
-  const [canScrollRight, setCanScrollRight] = useState(true);
 
   // Dragging state for smooth mouse dragging across keys
   const isDraggingRef = useRef(false);
@@ -156,44 +154,21 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
     return list;
   }, [startMidi, keyCount, convention]);
 
-  // Update scroll boundaries
-  const updateScrollButtons = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-    const { scrollLeft, scrollWidth, clientWidth } = scrollContainerRef.current;
-    setCanScrollLeft(scrollLeft > 6);
-    setCanScrollRight(scrollLeft < scrollWidth - clientWidth - 6);
-  }, []);
-
   useEffect(() => {
     const el = scrollContainerRef.current;
     if (!el) return;
-    updateScrollButtons();
 
     const handleContainerScroll = () => {
-      updateScrollButtons();
       if (scrollContainerRef.current && onSyncScroll && idPrefix) {
         onSyncScroll(scrollContainerRef.current.scrollLeft, idPrefix);
       }
     };
 
     el.addEventListener('scroll', handleContainerScroll, { passive: true });
-    window.addEventListener('resize', updateScrollButtons);
     return () => {
       el.removeEventListener('scroll', handleContainerScroll);
-      window.removeEventListener('resize', updateScrollButtons);
     };
-  }, [updateScrollButtons, keys, onSyncScroll, idPrefix]);
-
-  const scrollByAmount = (delta: number) => {
-    if (onSyncScrollBy) {
-      onSyncScrollBy(delta);
-    } else if (scrollContainerRef.current) {
-      scrollContainerRef.current.scrollBy({
-        left: delta,
-        behavior: 'smooth',
-      });
-    }
-  };
+  }, [keys, onSyncScroll, idPrefix]);
 
   // Center on relevant notes
   const centerOnChord = useCallback(() => {
@@ -380,60 +355,11 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
               <span>Centruj</span>
             </button>
           )}
-
-          <button
-            type="button"
-            onClick={() => scrollByAmount(-140)}
-            disabled={!canScrollLeft}
-            title="Przesuń w lewo"
-            className={`p-1 rounded cursor-pointer transition-colors ${
-              canScrollLeft
-                ? 'text-slate-300 hover:text-amber-400 hover:bg-slate-800'
-                : 'text-slate-700 cursor-not-allowed opacity-40'
-            }`}
-          >
-            <ChevronLeft className="w-3.5 h-3.5" />
-          </button>
-          <button
-            type="button"
-            onClick={() => scrollByAmount(140)}
-            disabled={!canScrollRight}
-            title="Przesuń w prawo"
-            className={`p-1 rounded cursor-pointer transition-colors ${
-              canScrollRight
-                ? 'text-slate-300 hover:text-amber-400 hover:bg-slate-800'
-                : 'text-slate-700 cursor-not-allowed opacity-40'
-            }`}
-          >
-            <ChevronRight className="w-3.5 h-3.5" />
-          </button>
         </div>
       </div>
 
       {/* Main Piano Chassis */}
       <div className="relative group">
-        {/* Floating edge pan buttons */}
-        {canScrollLeft && (
-          <button
-            type="button"
-            onClick={() => scrollByAmount(-140)}
-            title="Przesuń w lewo"
-            className="absolute left-0 top-1/2 -translate-y-1/2 z-20 w-6 h-12 bg-slate-950/85 hover:bg-slate-900 text-amber-400 rounded-r-lg flex items-center justify-center shadow-lg cursor-pointer transition-all border border-slate-700"
-          >
-            <ChevronLeft className="w-4 h-4 stroke-[3]" />
-          </button>
-        )}
-
-        {canScrollRight && (
-          <button
-            type="button"
-            onClick={() => scrollByAmount(140)}
-            title="Przesuń w prawo"
-            className="absolute right-0 top-1/2 -translate-y-1/2 z-20 w-6 h-12 bg-slate-950/85 hover:bg-slate-900 text-amber-400 rounded-l-lg flex items-center justify-center shadow-lg cursor-pointer transition-all border border-slate-700"
-          >
-            <ChevronRight className="w-4 h-4 stroke-[3]" />
-          </button>
-        )}
 
         {/* Scrollable Container with exact screenshot aesthetic */}
         <div

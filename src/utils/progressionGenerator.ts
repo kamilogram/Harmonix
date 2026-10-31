@@ -12,7 +12,7 @@ export type GeneratorArchetype =
 
 export interface GeneratorOptions {
   archetype?: GeneratorArchetype;
-  length?: 4 | 6 | 8;
+  length?: 4 | 6 | 8 | 'song';
   keyRoot?: NoteName;
   mode?: 'major' | 'minor';
 }
@@ -234,7 +234,31 @@ export function transposeSymbol(
  * Extract root note and mode (major/minor) from a progression key string (e.g. 'C-dur', 'Fis-dur', 'a-moll')
  */
 export function extractKeyFromProgression(prog: FamousProgression): { root: NoteName; mode: 'major' | 'minor' } {
-  const isMinor = prog.key.toLowerCase().includes('moll');
+  const isMinor = prog.key.toLowerCase().includes('moll') || prog.key.toLowerCase().includes('minor');
+
+  // Check if any step declares the tonic degree (I or i)
+  const tonicStep = prog.steps?.find((st) => {
+    const d = st.degree?.trim() || '';
+    return (
+      d === 'I' ||
+      d === 'i' ||
+      d.startsWith('I ') ||
+      d.startsWith('i ') ||
+      d.startsWith('I(') ||
+      d.startsWith('i(') ||
+      d.startsWith('Imaj') ||
+      d.startsWith('I7') ||
+      d.startsWith('i7')
+    ) && !d.startsWith('IV') && !d.startsWith('iv');
+  });
+
+  if (tonicStep) {
+    const parsed = parseChordSymbol(tonicStep.symbol);
+    const d = tonicStep.degree.trim();
+    const mode = isMinor || d === 'i' || d.startsWith('i') || parsed.quality === 'minor' || parsed.quality === 'min7' ? 'minor' : 'major';
+    return { root: parsed.root, mode };
+  }
+
   const firstPart = prog.key.split('-')[0].trim();
   const parsed = parseChordSymbol(firstPart);
   return {
@@ -242,6 +266,187 @@ export function extractKeyFromProgression(prog: FamousProgression): { root: Note
     mode: isMinor ? 'minor' : 'major',
   };
 }
+
+interface SongTemplate {
+  archetype: GeneratorArchetype;
+  title: string;
+  genre: string;
+  defaultMode: 'major' | 'minor';
+  description: string;
+  verse: { symbolInC: string; degree: string; role: string }[];
+  chorus: { symbolInC: string; degree: string; role: string }[];
+  bridge: { symbolInC: string; degree: string; role: string }[];
+}
+
+const SONG_TEMPLATES: SongTemplate[] = [
+  // 1. Pop & Stadium Anthem (Coldplay, U2, OneRepublic)
+  {
+    archetype: 'modern_pop',
+    title: 'Stadionowa Odyseja Popowa (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Stadionowy Pop',
+    defaultMode: 'major',
+    description:
+      'Kompletna trójczęściowa piosenka stadionowa. Otwiera się intymną zwrotką z noną add9 i zawieszeniem sus2, przechodzi w euforyczny refren pełen światła, a bridge z miksolidyjskim bVII i 6 podnosi temperaturę przed finałem.',
+    verse: [
+      { symbolInC: 'Cadd9', degree: 'Iadd9', role: 'Świetlista tonika z dodaną noną – intymny początek zwrotki' },
+      { symbolInC: 'Am7', degree: 'vi7', role: 'Ciepła paralela molowa z łagodną septymą' },
+      { symbolInC: 'Fsus2', degree: 'IVsus2', role: 'Szeroka subdominanta o dzwoniącym brzmieniu' },
+      { symbolInC: 'G7sus4', degree: 'V7sus4', role: 'Zawieszenie kwartowe budujące napięcie przed refrenem' },
+    ],
+    chorus: [
+      { symbolInC: 'Fadd9', degree: 'IVadd9', role: 'Euforyczne uderzenie refrenu – wzniesienie emocjonalne' },
+      { symbolInC: 'G', degree: 'V', role: 'Potężna, rozjaśniająca dominanta niosąca energię' },
+      { symbolInC: 'C', degree: 'I', role: 'Triumfalne rozwiązanie w pełną tonikę' },
+      { symbolInC: 'Am7', degree: 'vi7', role: 'Śpiewny, głęboki oddech na paraleli molowej' },
+    ],
+    bridge: [
+      { symbolInC: 'Dm7', degree: 'ii7', role: 'Zwrot narracji w ciemniejsze barwy subdominanty' },
+      { symbolInC: 'F6', degree: 'IV6', role: 'Wznosząca seksta dodająca słodyczy i tęsknoty' },
+      { symbolInC: 'Bb', degree: 'bVII', role: 'Zapożyczenie miksolidyjskie – potężny skok emocjonalny' },
+      { symbolInC: 'Gsus4', degree: 'Vsus4', role: 'Kulminacyjne zawieszenie kwarty przed powrotem do refrenu' },
+    ],
+  },
+
+  // 2. Film Noir & Thriller Suspense (James Bond / Hitchcock)
+  {
+    archetype: 'film_noir',
+    title: 'Deszczowy Thriller Noir (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Film Noir & Kryminał',
+    defaultMode: 'minor',
+    description:
+      'Trzyczęściowa filmowa opowieść noir. Deszczowa zwrotka z motywem seksty molowej (Bond), dramatyczny refren z akordem w pełni zmniejszonym dim7 i zwiększoną dominantą aug, oraz bridge z ucieczką w stronę światła.',
+    verse: [
+      { symbolInC: 'Am', degree: 'i', role: 'Mroczny motyw samotnego detektywa w deszczu' },
+      { symbolInC: 'Am7', degree: 'i7', role: 'Chromatyczny spadek basu ku mrocznej nocy' },
+      { symbolInC: 'Am6', degree: 'i6', role: 'Szpiegowska seksta molowa o filmowym zabarwieniu' },
+      { symbolInC: 'E7', degree: 'V7', role: 'Dominantowy zwiastun nadchodzącego niebezpieczeństwa' },
+    ],
+    chorus: [
+      { symbolInC: 'Dm6', degree: 'iv6', role: 'Dramatyczna kulminacja ze szlachetną sekstą' },
+      { symbolInC: 'Fmaj7', degree: 'VImaj7', role: 'Rozbłysk neonów w gęstej mgle' },
+      { symbolInC: 'Bdim7', degree: 'ii°7', role: 'Klaustrofobiczne napięcie akordu w pełni zmniejszonego' },
+      { symbolInC: 'Eaug', degree: 'Vaug', role: 'Rozdzierające spięcie harmoniczne zwiększonej dominanty' },
+    ],
+    bridge: [
+      { symbolInC: 'F', degree: 'VI', role: 'Nagły zwrot akcji – ucieczka przed pościgiem' },
+      { symbolInC: 'G', degree: 'VII', role: 'Chwilowe wyjście na otwartą przestrzeń' },
+      { symbolInC: 'Dm', degree: 'iv', role: 'Powrót do bezwzględnej rzeczywistości' },
+      { symbolInC: 'E7sus4', degree: 'V7sus4', role: 'Nieznośne zawieszenie przed ostatecznym rozstrzygnięciem' },
+    ],
+  },
+
+  // 3. Neo-Soul & Velvet Lounge (Tom Misch, Erykah Badu)
+  {
+    archetype: 'neo_soul',
+    title: 'Aksamitna Ballada Neo-Soul (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Neo-Soul & Jazz Pop',
+    defaultMode: 'major',
+    description:
+      'Gładka, zmysłowa kompozycja soulowa. Zwrotka w leniwym tempie z maj7 i 7sus4, głęboki refren z zapożyczoną sekstą molową iv6, oraz intrygujący bridge z neapolitańskim substytutem bIImaj7.',
+    verse: [
+      { symbolInC: 'Cmaj7', degree: 'Imaj7', role: 'Aksamitna septyma wielka w ciepłym blasku' },
+      { symbolInC: 'Am7', degree: 'vi7', role: 'Gładki, swingujący groove molowy' },
+      { symbolInC: 'Dm7', degree: 'ii7', role: 'Klasyczna soulowa subdominanta z septymą' },
+      { symbolInC: 'G7sus4', degree: 'V7sus4', role: 'Karmelowe zawieszenie kwarty w dominancie' },
+    ],
+    chorus: [
+      { symbolInC: 'Fmaj7', degree: 'IVmaj7', role: 'Zmysłowe, szerokie otwarcie refrenu' },
+      { symbolInC: 'Fm6', degree: 'iv6', role: 'Kultowe zapożyczenie molowe z melancholijną sekstą' },
+      { symbolInC: 'Em7', degree: 'iii7', role: 'Głęboki, intymny środek harmonii' },
+      { symbolInC: 'A7', degree: 'VI7', role: 'Wtrącona dominanta prowadząca z powrotem do groove\'u' },
+    ],
+    bridge: [
+      { symbolInC: 'Dm7', degree: 'ii7', role: 'Spowolniony puls lo-fi z miękkim basem' },
+      { symbolInC: 'Dbmaj7', degree: 'bIImaj7', role: 'Substytut trytonowy – aksamitny akord neapolitański' },
+      { symbolInC: 'Cmaj7', degree: 'Imaj7', role: 'Czyste ukojenie w tonice maj7' },
+      { symbolInC: 'G7', degree: 'V7', role: 'Przygotowanie do wybuchu ostatniego refrenu' },
+    ],
+  },
+
+  // 4. Epic Rock & Stadium Ballad (Queen, Muse)
+  {
+    archetype: 'epic_rock',
+    title: 'Monumentalny Hymn Rockowy (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Epicki Rock & Ballada',
+    defaultMode: 'major',
+    description:
+      'Wieloczęściowa suita stadionowa w stylu epickich hymnów Queen i Muse. Stonowana zwrotka z miksolidyjskim bVII, eksplodujący refren na ścianie gitar, oraz wstrząsający bridge modulujący do chromatycznego bVI.',
+    verse: [
+      { symbolInC: 'C', degree: 'I', role: 'Dostojna, spokojna tonika otwierająca opowieść' },
+      { symbolInC: 'Bb', degree: 'bVII', role: 'Monumentalny akord miksolidyjski całotonowy' },
+      { symbolInC: 'Fadd9', degree: 'IVadd9', role: 'Śpiewna subdominanta z szerokim blaskiem nony' },
+      { symbolInC: 'C', degree: 'I', role: 'Powrót do stabilnej bazy' },
+    ],
+    chorus: [
+      { symbolInC: 'Am7', degree: 'vi7', role: 'Eksplozja emocjonalna na molowej paraleli' },
+      { symbolInC: 'Fadd9', degree: 'IVadd9', role: 'Mocne, otwarte wejście gitarowego refrenu' },
+      { symbolInC: 'C', degree: 'I', role: 'Potężna ściana dźwięku w tonice' },
+      { symbolInC: 'Gsus4', degree: 'Vsus4', role: 'Hymniczne zawieszenie kwintowe stadionu' },
+    ],
+    bridge: [
+      { symbolInC: 'Ab', degree: 'bVI', role: 'Dramatyczna modulacja chromatyczna – mroczny zwrot akcji' },
+      { symbolInC: 'Bb', degree: 'bVII', role: 'Wznoszący krok całotonowy pompujący ciśnienie' },
+      { symbolInC: 'Csus2', degree: 'Isus2', role: 'Krystaliczny błysk nadziei z sekundą' },
+      { symbolInC: 'G', degree: 'V', role: 'Epicka dominanta przed finałowym refrenem' },
+    ],
+  },
+
+  // 5. Ambient & Kosmiczna Odyseja (Brian Eno, Vangelis, Zimmer)
+  {
+    archetype: 'ambient_wonder',
+    title: 'Kosmiczna Odyseja (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Cinematic Ambient',
+    defaultMode: 'major',
+    description:
+      'Trzyczęściowa filmowo-przestrzenna podróż przez galaktyki. Zwrotka w stanie nieważkości z akordem zwiększonym aug, rozświetlony refren z add9, oraz bridge przekraczający horyzont zdarzeń w tonacji bVImaj7.',
+    verse: [
+      { symbolInC: 'Csus2', degree: 'Isus2', role: 'Nieważkość w przestrzeni kosmicznej' },
+      { symbolInC: 'Caug', degree: 'Iaug', role: 'Tajemniczy blask odległej gwiazdy ze zwiększoną kwintą' },
+      { symbolInC: 'C6', degree: 'I6', role: 'Łagodne lądowanie na orbicie satelity' },
+      { symbolInC: 'Fmaj7', degree: 'IVmaj7', role: 'Rozbłysk zorzy polarnej w wielkiej septymie' },
+    ],
+    chorus: [
+      { symbolInC: 'Fsus2', degree: 'IVsus2', role: 'Szeroka panorama oceanu dźwięków' },
+      { symbolInC: 'Am7', degree: 'vi7', role: 'Głęboka pustka międzygwiezdna' },
+      { symbolInC: 'Gadd9', degree: 'Vadd9', role: 'Promień światła z odległości lat świetlnych' },
+      { symbolInC: 'Csus2', degree: 'Isus2', role: 'Powrót do hipnotycznej równowagi' },
+    ],
+    bridge: [
+      { symbolInC: 'Abmaj7', degree: 'bVImaj7', role: 'Przekroczenie horyzontu zdarzeń w obcej tonacji' },
+      { symbolInC: 'Fadd9', degree: 'IVadd9', role: 'Ciepły rezonans rozszerzającego się wszechświata' },
+      { symbolInC: 'Dm7', degree: 'ii7', role: 'Dryfujący motyw kontemplacyjny' },
+      { symbolInC: 'Gsus4', degree: 'Vsus4', role: 'Oczekiwanie na narodziny nowej gwiazdy' },
+    ],
+  },
+
+  // 6. Gypsy Swing & Parisian Ballad (Django Reinhardt)
+  {
+    archetype: 'gypsy_swing',
+    title: 'Paryska Opowieść Swingowa (Forma AABA)',
+    genre: 'Pełna Piosenka / Gypsy Swing 1930s',
+    defaultMode: 'minor',
+    description:
+      'Kompletna forma swingowej ballady paryskiej. Zwrotka z energetyczną sekstą molową m6, ekspresyjny refren z chromatycznym aug, oraz bridge z dominantami wtrąconymi i popisem solowym na akordzie zmniejszonym.',
+    verse: [
+      { symbolInC: 'Am6', degree: 'i6', role: 'Skoczny motyw Django w dymnej paryskiej kawiarni' },
+      { symbolInC: 'Bdim', degree: 'ii°', role: 'Krok zmniejszony na gitarze cygańskiej' },
+      { symbolInC: 'E7', degree: 'V7', role: 'Ognista dominanta z hiszpańskim akcentem' },
+      { symbolInC: 'Am6', degree: 'i6', role: 'Wirtuozerski powrót do seksty molowej' },
+    ],
+    chorus: [
+      { symbolInC: 'Dm6', degree: 'iv6', role: 'Szybki, zamaszysty swing w lewej ręce' },
+      { symbolInC: 'Am6', degree: 'i6', role: 'Śpiewny pasaż skrzypiec Grappellego' },
+      { symbolInC: 'Eaug', degree: 'Vaug', role: 'Pikantne zaostrzenie chromatyczne' },
+      { symbolInC: 'Am', degree: 'i', role: 'Twarde lądowanie na akcencie' },
+    ],
+    bridge: [
+      { symbolInC: 'F7', degree: 'VI7', role: 'Paryski walczyk z dominantą wtrąconą' },
+      { symbolInC: 'Bdim7', degree: 'ii°7', role: 'Dramatyczny popis solisty na akordzie zmniejszonym' },
+      { symbolInC: 'E7', degree: 'V7', role: 'Przyspieszenie tempa przed powrotem tematu' },
+      { symbolInC: 'Am6', degree: 'i6', role: 'Triumfalne zamknięcie formy pieśni' },
+    ],
+  },
+];
 
 /**
  * Transposes an already generated FamousProgression to a new target key,
@@ -273,6 +478,7 @@ export function transposeSmartProgression(
     return {
       ...step,
       symbol: newSymbol,
+      section: step.section,
     };
   });
 
@@ -287,11 +493,16 @@ export function transposeSmartProgression(
     newDescription = `${newDescription} Wzbogacone akordy: ${chordSet}.`;
   }
 
+  const isSong = Boolean(prog.steps.some((s) => Boolean(s.section))) || prog.structure?.includes('Cała Piosenka');
+  const structureStr = isSong
+    ? prog.structure || 'Cała Piosenka (Zwrotka ➔ Refren ➔ Bridge)'
+    : `${transposedSteps.length} Akordów (${transposedSteps.map((s) => s.symbol).join(' – ')})`;
+
   return {
     ...prog,
     id: `gen_transposed_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
     key: tonalityStr,
-    structure: `${transposedSteps.length} Akordów (${transposedSteps.map((s) => s.symbol).join(' – ')})`,
+    structure: structureStr,
     description: newDescription,
     steps: transposedSteps,
   };
@@ -301,7 +512,63 @@ export function transposeSmartProgression(
  * Generates an inspiring, musically verified harmonic progression on the fly
  */
 export function generateSmartProgression(options: GeneratorOptions = {}): FamousProgression {
-  // 1. Choose template
+  const targetLength = options.length || 4;
+
+  // Handle Full Song Generation (Zwrotka, Refren, Bridge)
+  if (targetLength === 'song') {
+    const songTemplates =
+      options.archetype && options.archetype !== 'all'
+        ? SONG_TEMPLATES.filter((t) => t.archetype === options.archetype)
+        : SONG_TEMPLATES;
+
+    const chosenSong =
+      songTemplates[Math.floor(Math.random() * songTemplates.length)] || SONG_TEMPLATES[0];
+
+    const mode = options.mode || chosenSong.defaultMode;
+    const targetKeyRoot = options.keyRoot || (mode === 'minor' ? 'A' : 'C');
+    const sourceBaseRoot: NoteName = chosenSong.defaultMode === 'minor' ? 'A' : 'C';
+
+    const verseSteps: FamousProgressionStep[] = chosenSong.verse.map((st) => ({
+      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
+      degree: st.degree,
+      role: st.role,
+      section: 'Zwrotka',
+    }));
+
+    const chorusSteps: FamousProgressionStep[] = chosenSong.chorus.map((st) => ({
+      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
+      degree: st.degree,
+      role: st.role,
+      section: 'Refren',
+    }));
+
+    const bridgeSteps: FamousProgressionStep[] = chosenSong.bridge.map((st) => ({
+      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
+      degree: st.degree,
+      role: st.role,
+      section: 'Bridge',
+    }));
+
+    const allSteps: FamousProgressionStep[] = [...verseSteps, ...chorusSteps, ...bridgeSteps];
+
+    const keyLabel = getNoteLabel(targetKeyRoot, 'polish');
+    const tonalityStr = mode === 'minor' ? `${keyLabel}-moll` : `${keyLabel}-dur`;
+    const uniqueId = `song_gen_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`;
+
+    return {
+      id: uniqueId,
+      name: `${chosenSong.title}`,
+      genre: chosenSong.genre,
+      structure: 'Cała Piosenka (Zwrotka ➔ Refren ➔ Bridge)',
+      description: `${chosenSong.description} Wzbogacone akordy: ${Array.from(
+        new Set(allSteps.map((s) => s.symbol))
+      ).join(', ')}.`,
+      key: tonalityStr,
+      steps: allSteps,
+    };
+  }
+
+  // 1. Choose template for 4, 6, 8 chords
   const availableTemplates =
     options.archetype && options.archetype !== 'all'
       ? HARMONIC_TEMPLATES.filter((t) => t.archetype === options.archetype)
@@ -313,7 +580,6 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
 
   const mode = options.mode || chosenTemplate.defaultMode;
   const targetKeyRoot = options.keyRoot || (mode === 'minor' ? 'A' : 'C');
-  const targetLength = options.length || 4;
 
   // 2. Select steps from the pool based on targetLength
   const pool = chosenTemplate.stepsPool;
@@ -326,7 +592,6 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
       if (variant === 0) {
         selectedStepsInC = pool.slice(0, 4);
       } else if (variant === 1) {
-        // e.g. I -> IV -> V -> I variant
         selectedStepsInC = [pool[0], pool[2] || pool[1], pool[3] || pool[2], pool[4] || pool[0]];
       } else {
         selectedStepsInC = pool.slice(2, 6);

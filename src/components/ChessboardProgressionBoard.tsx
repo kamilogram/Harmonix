@@ -1,4 +1,4 @@
-import React, { useState, useRef, useEffect, useCallback } from 'react';
+import React, { useState, useRef, useEffect, useCallback, useMemo } from 'react';
 import confetti from 'canvas-confetti';
 import {
   ChordDefinition,
@@ -44,9 +44,10 @@ import {
   PinOff,
   ArrowLeftRight,
   Wand2,
+  Music,
 } from 'lucide-react';
 import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormula } from './ProgressionLibrary';
-import { scrollToTonalityProgressionBar } from '../utils/scrollHelper';
+import { scrollToTonalityProgressionBar, scrollToFirstPianoKeyboard } from '../utils/scrollHelper';
 import { generateSmartProgression, saveCustomProgression } from '../utils/progressionGenerator';
 import { parseChordSymbol } from '../utils/musicTheory';
 
@@ -100,6 +101,7 @@ function shuffleAndColorChoices(choices: QuizChoice[]): {
 interface BoardStep {
   stepIndex: number;
   baseChord: ChordDefinition;
+  section?: string;
   choices: QuizChoice[];
   choiceThemeMap?: Record<string, CardTheme>;
   selectedChoice: QuizChoice | null;
@@ -118,7 +120,11 @@ interface ChessboardProgressionBoardProps {
   onClearLoadedProgression?: () => void;
   onUpdateWorkshopResults?: (results: Record<number, WorkshopStepResult>) => void;
   onNavigateToLibrary?: () => void;
-  onLoadProgression?: (chords: ChordDefinition[], metadata?: LoadedProgressionMetadata) => void;
+  onLoadProgression?: (
+    chords: ChordDefinition[],
+    metadata?: LoadedProgressionMetadata,
+    options?: { skipScrollToTonalityBar?: boolean }
+  ) => void;
 }
 
 // Helper to generate the exact starter steps matching the screenshot
@@ -654,6 +660,7 @@ function buildStepsFromChordDefinitions(chords: ChordDefinition[]): BoardStep[] 
     return {
       stepIndex: idx + 1,
       baseChord: targetChord,
+      section: targetChord.section,
       choices: shuffledChoices,
       choiceThemeMap: themeMap,
       selectedChoice: null,
@@ -717,12 +724,17 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   });
 
 
+  // Flag to prevent tonality bar scroll when user explicitly requests randomizing key to focus on the first piano keyboard
+  const isRandomizingKeyRef = useRef(false);
+
   // When a new progression is loaded from Library or Sandbox, update the steps immediately
   // and smoothly scroll so that the tonality and progression bar is positioned at the top of the viewport
   useEffect(() => {
     if (loadedProgression && loadedProgression.length > 0) {
       setSteps(buildStepsFromChordDefinitions(loadedProgression));
-      scrollToTonalityProgressionBar();
+      if (!isRandomizingKeyRef.current) {
+        scrollToTonalityProgressionBar();
+      }
     }
   }, [loadedProgression]);
 
@@ -868,6 +880,50 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       return next;
     });
   };
+
+  // Dynamically derive the true tonality from the active steps on the board
+  // This guarantees the main bar ALWAYS matches the actual chords on the piano keyboards!
+  const displayedTonality = useMemo(() => {
+    // 1. Look for a tonic step (degree I / i) among the current steps
+    const tonicStep = steps.find((s) => {
+      const d = s.baseChord.functionDegree?.trim() || '';
+      return (
+        d === 'I' ||
+        d === 'i' ||
+        d.startsWith('I ') ||
+        d.startsWith('i ') ||
+        d.startsWith('I(') ||
+        d.startsWith('i(') ||
+        d.startsWith('Imaj') ||
+        d.startsWith('I7') ||
+        d.startsWith('i7')
+      ) && !d.startsWith('IV') && !d.startsWith('iv');
+    });
+
+    let root: NoteName = 'C';
+    let mode: 'major' | 'minor' = 'major';
+
+    if (tonicStep) {
+      root = tonicStep.baseChord.root;
+      const d = tonicStep.baseChord.functionDegree?.trim() || '';
+      mode = (d === 'i' || d.startsWith('i') || tonicStep.baseChord.quality === 'minor' || tonicStep.baseChord.quality === 'min7')
+        ? 'minor'
+        : 'major';
+    } else if (loadedKeyInfo?.root) {
+      root = loadedKeyInfo.root;
+      mode = loadedKeyInfo.mode || 'major';
+    } else if (steps[0]) {
+      root = steps[0].baseChord.root;
+      mode = steps[0].baseChord.quality === 'minor' ? 'minor' : 'major';
+    }
+
+    const rootLabel = getNoteLabel(root, convention);
+    const keyName = convention === 'polish'
+      ? `${rootLabel}-${mode === 'minor' ? 'moll' : 'dur'}`
+      : `${rootLabel}${mode === 'minor' ? 'm' : ''}`;
+
+    return { root, mode, keyName };
+  }, [steps, loadedKeyInfo, convention]);
 
   // User Request: Toggle between Roman numeral progression notation and concrete chords in the active tonality
   const [progressionNotation, setProgressionNotation] = useState<'roman' | 'chords'>(() => {
@@ -1271,7 +1327,8 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   const handleQuickGenerateExtended = () => {
     const keyRoot = loadedKeyInfo?.root || 'C';
     const mode = loadedKeyInfo?.mode || 'major';
-    const targetLength = (steps.length === 6 ? 6 : steps.length >= 8 ? 8 : 4) as 4 | 6 | 8;
+    const hasCurrentSections = steps.some((s) => Boolean(s.section || s.baseChord.section));
+    const targetLength = (hasCurrentSections ? 'song' : steps.length === 6 ? 6 : steps.length >= 8 ? 8 : 4) as 4 | 6 | 8 | 'song';
     const newProg = generateSmartProgression({
       keyRoot,
       mode,
@@ -1280,7 +1337,9 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
     const parsedChords = newProg.steps.map((st) => {
       const parsed = parseChordSymbol(st.symbol);
-      return createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      const chord = createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      chord.section = st.section;
+      return chord;
     });
 
     const formulaInfo = getProgressionRomanFormula(newProg);
@@ -1307,43 +1366,57 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     scrollToTonalityProgressionBar();
   };
 
-  // User Request: Randomize tonality in workshop and transpose all steps to the new key
+  // User Request: Randomize tonality in workshop and transpose all steps to the new key, scrolling smoothly to the first piano keyboard
   const handleRandomizeWorkshopKey = () => {
-    const currentRoot = loadedKeyInfo?.root || 'C';
+    isRandomizingKeyRef.current = true;
+    const currentRoot = displayedTonality.root;
+    const currentMode = displayedTonality.mode;
     const otherRoots = NOTE_NAMES.filter((r) => r !== currentRoot);
     const newRoot = otherRoots[Math.floor(Math.random() * otherRoots.length)];
     const oldIdx = NOTE_NAMES.indexOf(currentRoot);
     const newIdx = NOTE_NAMES.indexOf(newRoot);
     const delta = (newIdx - oldIdx + 12) % 12;
 
-    const isMinor = loadedKeyInfo?.mode === 'minor';
     const keyLabel = getNoteLabel(newRoot, convention);
-    const newKeyName = isMinor ? `${keyLabel}-moll` : `${keyLabel}-dur`;
+    const newKeyName = currentMode === 'minor' ? `${keyLabel}-moll` : `${keyLabel}-dur`;
 
     const transposedChords = steps.map((s) => {
       const parsed = parseChordSymbol(s.baseChord.symbol);
       const oldChordIdx = NOTE_NAMES.indexOf(parsed.root);
       const newChordRoot = NOTE_NAMES[(oldChordIdx + delta) % 12];
-      return createChordDefinition(
+      const chordDef = createChordDefinition(
         newChordRoot,
         parsed.quality,
         s.baseChord.functionDegree,
         s.baseChord.description
       );
+      chordDef.section = s.section || s.baseChord.section;
+      return chordDef;
     });
 
     if (onLoadProgression) {
-      onLoadProgression(transposedChords, {
-        keyName: newKeyName,
-        progName: loadedKeyInfo?.progName || 'Ćwiczenie',
-        progId: loadedKeyInfo?.progId,
-        degrees: loadedKeyInfo?.degrees || '',
-        root: newRoot,
-        mode: loadedKeyInfo?.mode || 'major',
-      });
+      onLoadProgression(
+        transposedChords,
+        {
+          keyName: newKeyName,
+          progName: loadedKeyInfo?.progName || 'Ćwiczenie',
+          progId: loadedKeyInfo?.progId,
+          degrees: loadedKeyInfo?.degrees || '',
+          root: newRoot,
+          mode: currentMode,
+        },
+        { skipScrollToTonalityBar: true }
+      );
     } else {
       setSteps(buildStepsFromChordDefinitions(transposedChords));
     }
+
+    // Scroll cleanly to the first piano keyboard
+    scrollToFirstPianoKeyboard();
+
+    setTimeout(() => {
+      isRandomizingKeyRef.current = false;
+    }, 1200);
   };
 
   // Helper to evaluate what chord matches the played MIDI notes on a step
@@ -1986,7 +2059,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30 shrink-0">
             <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Tonacja: {loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C')}</span>
+            <span>Tonacja: {displayedTonality.keyName}</span>
           </div>
 
           {/* User Request 2: Button 'przypnij / odepnij' directly next to the tonality label */}
@@ -2075,24 +2148,40 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       {/* 4 RECTANGLES -> PIANO KEYBOARD -> REPEAT                 */}
       {/* ======================================================== */}
       <div className={hideChordChoices ? 'space-y-2 sm:space-y-2.5' : 'space-y-4'}>
-        {steps.map((step) => {
+        {steps.map((step, idx) => {
           const isActivePlayback = activePlaybackStep === step.stepIndex;
           const displayChoices = step.expandedChoices
             ? [...step.choices, ...getExtendedChoices(step.choices)]
             : step.choices;
           const isStepChoicesVisible = !hideChordChoices || peekedStepIndices.has(step.stepIndex);
+          const stepSection = step.section || step.baseChord.section;
+          const prevSection = idx > 0 ? (steps[idx - 1].section || steps[idx - 1].baseChord.section) : null;
+          const isNewSection = Boolean(stepSection) && stepSection !== prevSection;
 
           return (
-            <div
-              key={`screenshot_step_${step.stepIndex}`}
-              className={`rounded-2xl transition-all duration-300 ${
-                !isStepChoicesVisible ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'
-              } ${
-                isActivePlayback
-                  ? 'bg-amber-500/10 ring-2 ring-amber-400/50 shadow-xl'
-                  : 'bg-[#0f1422]/90 border border-slate-800/90 shadow-xl'
-              }`}
-            >
+            <React.Fragment key={`screenshot_step_wrapper_${step.stepIndex}`}>
+              {isNewSection && (
+                <div className="flex items-center gap-3 pt-3 pb-1 px-1">
+                  <div className="h-0.5 flex-1 bg-gradient-to-r from-transparent via-amber-500/40 to-amber-500/10" />
+                  <span className="px-3.5 py-1 rounded-full text-xs font-black uppercase tracking-wider bg-gradient-to-r from-amber-400/20 via-amber-300/15 to-amber-500/20 text-amber-300 border border-amber-400/35 shadow-md flex items-center gap-2">
+                    <Music className="w-3.5 h-3.5 text-amber-400" />
+                    <span>{stepSection}</span>
+                  </span>
+                  <div className="h-0.5 flex-1 bg-gradient-to-l from-transparent via-amber-500/40 to-amber-500/10" />
+                </div>
+              )}
+              <div
+                key={`screenshot_step_${step.stepIndex}`}
+                id={step.stepIndex === 1 ? 'step-1-card-container' : undefined}
+                data-step-card="true"
+                className={`rounded-2xl transition-all duration-300 ${
+                  !isStepChoicesVisible ? 'p-1.5 sm:p-2' : 'p-2 sm:p-2.5'
+                } ${
+                  isActivePlayback
+                    ? 'bg-amber-500/10 ring-2 ring-amber-400/50 shadow-xl'
+                    : 'bg-[#0f1422]/90 border border-slate-800/90 shadow-xl'
+                }`}
+              >
               {/* Step Header with index, delete and options toggle */}
               <div className="flex items-center justify-between px-1 mb-1 text-xs">
                 <div className="flex items-center gap-1.5">
@@ -2401,12 +2490,36 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
               </div>
 
             </div>
-          );
-        })}
-      </div>
+          </React.Fragment>
+        );
+      })}
+    </div>
 
-      {/* Dynamic step addition button */}
-      <div className="pt-2 flex flex-col gap-2">
+    {/* Dynamic step addition or Pattern Navigation buttons */}
+    <div className="pt-2 flex flex-col gap-2">
+      {Boolean(loadedProgression && loadedProgression.length > 0) || Boolean(loadedKeyInfo && (loadedKeyInfo.progId || loadedKeyInfo.progName)) ? (
+        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+          <button
+            type="button"
+            onClick={handleRandomizeWorkshopKey}
+            className="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/20 to-amber-500/10 hover:from-amber-500/30 hover:via-amber-400/30 hover:to-amber-500/20 border-2 border-amber-500/40 hover:border-amber-400 text-amber-200 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
+            title="Wylosuj nową tonację dla tego wzorca i przejdź do pierwszej klawiatury"
+          >
+            <Shuffle className="w-5 h-5 text-amber-400 stroke-[2.5]" />
+            <span>🎲 Losuj nową tonację</span>
+          </button>
+
+          <button
+            type="button"
+            onClick={onNavigateToLibrary}
+            className="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-sky-500/10 hover:from-sky-500/30 hover:via-purple-500/30 hover:to-sky-500/20 border-2 border-sky-500/40 hover:border-sky-400 text-sky-200 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
+            title="Przejdź do biblioteki wzorców"
+          >
+            <Layers className="w-5 h-5 text-sky-400 stroke-[2.5]" />
+            <span>📚 Przejdź do wzorców</span>
+          </button>
+        </div>
+      ) : (
         <button
           type="button"
           onClick={handleAddStep}
@@ -2415,11 +2528,12 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           <Plus className="w-5 h-5 text-amber-400 stroke-[3]" />
           <span>+ Dodaj kolejny akord (Krok {steps.length + 1})</span>
         </button>
+      )}
 
-        <div className="text-center text-[11px] text-slate-500 flex items-center justify-center gap-2">
-          <span>🔗 Klawiatury są zsynchronizowane – klawisz C zawsze znajduje się dokładnie pod pozostałymi klawiszami C</span>
-        </div>
+      <div className="text-center text-[11px] text-slate-500 flex items-center justify-center gap-2">
+        <span>🔗 Klawiatury są zsynchronizowane – klawisz C zawsze znajduje się dokładnie pod pozostałymi klawiszami C</span>
       </div>
+    </div>
 
       {/* ======================================================== */}
       {/* DETAILED CHORD DESCRIPTION MODAL (Opened on Hold or Info) */}

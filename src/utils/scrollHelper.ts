@@ -4,13 +4,34 @@
  */
 export function scrollToFirstPianoKeyboard(retries = 15) {
   const tryScroll = (attemptsLeft: number) => {
-    const el =
+    const panel = document.getElementById('tabpanel-workshop');
+    const pianoEl =
       document.getElementById('first-piano-keyboard-container') ||
       document.querySelector('[data-first-piano="true"]') ||
-      document.querySelector('[data-step-index="1"]') ||
       document.querySelector('#step_1_piano_container');
+    const stepCard =
+      document.getElementById('step-1-card-container') ||
+      (pianoEl ? (pianoEl.closest('[data-step-card="true"]') as HTMLElement | null) : null) ||
+      document.querySelector('[data-step-index="1"]');
 
-    if (el) {
+    const el = pianoEl || stepCard;
+
+    if (panel && el) {
+      const panelRect = panel.getBoundingClientRect();
+      const elRect = el.getBoundingClientRect();
+      const stickyBar = document.getElementById('workshop-tonality-progression-bar');
+      const stickyHeight = stickyBar ? stickyBar.getBoundingClientRect().height : 85;
+
+      const targetY = panel.scrollTop + (elRect.top - panelRect.top) - (stickyHeight + 16);
+      panel.scrollTo({
+        top: Math.max(0, targetY),
+        behavior: 'smooth',
+      });
+      el.classList.add('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
+      setTimeout(() => {
+        el.classList.remove('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
+      }, 1500);
+    } else if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
@@ -24,7 +45,7 @@ export function scrollToFirstPianoKeyboard(retries = 15) {
   // Delay to allow tab display transition (hidden -> block) and layout rendering
   setTimeout(() => {
     requestAnimationFrame(() => tryScroll(retries));
-  }, 60);
+  }, 50);
 }
 
 /**

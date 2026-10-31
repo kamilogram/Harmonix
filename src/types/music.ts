@@ -54,6 +54,7 @@ export interface ChordDefinition {
   functionDegree?: string; // e.g. "I", "IV", "V", "vi", "V7", "IVmaj7"
   description?: string;
   emotionalRole?: string;
+  section?: string; // e.g. "Zwrotka", "Refren", "Bridge"
 }
 
 export interface ProgressionStep {

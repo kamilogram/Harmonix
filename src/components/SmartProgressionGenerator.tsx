@@ -19,7 +19,7 @@ import {
   NOTE_NAMES,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
-import { LoadedProgressionMetadata, formatDegreeLabel } from './ProgressionLibrary';
+import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormula } from './ProgressionLibrary';
 import {
   Wand2,
   Play,
@@ -54,14 +54,14 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
   onKeyChange,
 }) => {
   const [archetype, setArchetype] = useState<GeneratorArchetype>('all');
-  const [length, setLength] = useState<4 | 6 | 8>(4);
+  const [length, setLength] = useState<4 | 6 | 8 | 'song'>(4);
   const [generatedProg, setGeneratedProg] = useState<FamousProgression | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showKeyPicker, setShowKeyPicker] = useState(false);
 
   // Generate initial progression or on button click
-  const handleGenerate = (customLength?: 4 | 6 | 8, customArchetype?: GeneratorArchetype, customKeyRoot?: NoteName) => {
+  const handleGenerate = (customLength?: 4 | 6 | 8 | 'song', customArchetype?: GeneratorArchetype, customKeyRoot?: NoteName) => {
     setIsSaved(false);
     const newProg = generateSmartProgression({
       archetype: customArchetype || archetype,
@@ -132,7 +132,9 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
   const getProgressionChords = (prog: FamousProgression): ChordDefinition[] => {
     return prog.steps.map((st) => {
       const parsed = parseChordSymbol(st.symbol);
-      return createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      const chord = createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      chord.section = st.section;
+      return chord;
     });
   };
 
@@ -156,15 +158,22 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
     onProgressionSaved?.();
 
     const chords = getProgressionChords(generatedProg);
-    const degreesStr = generatedProg.steps.map((s) => formatDegreeLabel(s.degree)).join(' – ');
+    const formulaInfo = getProgressionRomanFormula(generatedProg);
+    const degreesStr = formulaInfo.hasSections
+      ? formulaInfo.sectionFormulas.map((s) => `${s.name}: ${s.formula}`).join(' | ')
+      : formulaInfo.fullFormula;
+
+    const progKey = extractKeyFromProgression(generatedProg);
+    const keyLabel = getNoteLabel(progKey.root, 'polish');
+    const accurateKeyName = progKey.mode === 'minor' ? `${keyLabel}-moll` : `${keyLabel}-dur`;
 
     onLoadProgression(chords, {
-      keyName: generatedProg.key,
+      keyName: accurateKeyName,
       progName: generatedProg.name,
       progId: generatedProg.id,
       degrees: degreesStr,
-      root: currentKeyRoot,
-      mode: currentMode,
+      root: progKey.root,
+      mode: progKey.mode,
     });
   };
 
@@ -306,12 +315,12 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
 
         {/* Length selector & Generate Button */}
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
-          <div className="flex items-center gap-2">
+          <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-amber-400" />
               Liczba akordów:
             </span>
-            <div className="inline-flex rounded-xl bg-slate-950 border border-slate-800 p-0.5">
+            <div className="inline-flex rounded-xl bg-slate-950 border border-slate-800 p-0.5 flex-wrap gap-0.5">
               {([4, 6, 8] as const).map((len) => (
                 <button
                   key={`len_${len}`}
@@ -329,6 +338,22 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                   {len} akordy
                 </button>
               ))}
+              <button
+                type="button"
+                onClick={() => {
+                  setLength('song');
+                  handleGenerate('song', archetype);
+                }}
+                className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
+                  length === 'song'
+                    ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 shadow-sm font-black'
+                    : 'text-amber-300 hover:text-white'
+                }`}
+                title="Generuj całą formę piosenki: Zwrotka (4 akordy), Refren (4 akordy) i Bridge (4 akordy)"
+              >
+                <Music className="w-3 h-3" />
+                <span>🎵 Cała piosenka (Zwrotka, Refren, Bridge)</span>
+              </button>
             </div>
           </div>
 
@@ -433,8 +458,17 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                     }`
                   : st.symbol;
 
+              const isNewSection =
+                Boolean(st.section) &&
+                (sIdx === 0 || generatedProg.steps[sIdx - 1].section !== st.section);
+
               return (
                 <React.Fragment key={`gen_step_${sIdx}`}>
+                  {isNewSection && (
+                    <span className="shrink-0 px-2 py-1 rounded-lg text-[9px] font-black uppercase tracking-wider bg-amber-400/20 text-amber-300 border border-amber-400/40">
+                      {st.section}
+                    </span>
+                  )}
                   <div className="p-2 rounded-xl min-w-[70px] sm:min-w-[80px] text-center bg-slate-900 border border-slate-800 hover:border-amber-400/50 transition-colors shadow-sm">
                     <div className="text-sm sm:text-base font-black text-white tracking-tight">
                       {label}
