@@ -733,7 +733,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     if (loadedProgression && loadedProgression.length > 0) {
       setSteps(buildStepsFromChordDefinitions(loadedProgression));
       if (!isRandomizingKeyRef.current) {
-        scrollToTonalityProgressionBar();
+        scrollToFirstPianoKeyboard();
       }
     }
   }, [loadedProgression]);
@@ -1363,7 +1363,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       });
     }
 
-    scrollToTonalityProgressionBar();
+    scrollToFirstPianoKeyboard();
   };
 
   // User Request: Randomize tonality in workshop and transpose all steps to the new key, scrolling smoothly to the first piano keyboard

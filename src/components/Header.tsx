@@ -10,8 +10,8 @@ import {
 } from '../utils/sessionTracker';
 
 interface HeaderProps {
-  activeView: 'workshop' | 'library' | 'circle' | 'sandbox';
-  onViewChange: (view: 'workshop' | 'library' | 'circle' | 'sandbox') => void;
+  activeView: 'workshop' | 'library' | 'guess' | 'circle' | 'sandbox';
+  onViewChange: (view: 'workshop' | 'library' | 'guess' | 'circle' | 'sandbox') => void;
   onOpenTheory: () => void;
   isMuted: boolean;
   onToggleMute: () => void;
@@ -129,6 +129,17 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
             <button
               type="button"
+              onClick={() => onViewChange('guess')}
+              className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
+                activeView === 'guess'
+                  ? 'text-amber-400 font-semibold border-b-2 border-amber-400'
+                  : 'text-slate-400 hover:text-slate-200'
+              }`}
+            >
+              Odgadnij Akord
+            </button>
+            <button
+              type="button"
               onClick={() => onViewChange('circle')}
               className={`whitespace-nowrap shrink-0 transition-colors cursor-pointer py-1 ${
                 activeView === 'circle'
@@ -193,10 +204,17 @@ export const Header: React.FC<HeaderProps> = ({
           </button>
           <button
             type="button"
+            onClick={() => onViewChange('guess')}
+            className={`px-2.5 py-1 rounded-lg ${activeView === 'guess' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
+          >
+            Odgadnij
+          </button>
+          <button
+            type="button"
             onClick={() => onViewChange('circle')}
             className={`px-2.5 py-1 rounded-lg ${activeView === 'circle' ? 'text-amber-400 font-bold bg-slate-900' : 'text-slate-400'}`}
           >
-            Koło Kwintowe
+            Koło
           </button>
           <button
             type="button"

@@ -2,7 +2,7 @@
  * Utility to scroll the viewport smoothly so that the first piano keyboard
  * is centered vertically on screen.
  */
-export function scrollToFirstPianoKeyboard(retries = 15) {
+export function scrollToFirstPianoKeyboard(retries = 20) {
   const tryScroll = (attemptsLeft: number) => {
     const panel = document.getElementById('tabpanel-workshop');
     const pianoEl =
@@ -15,8 +15,9 @@ export function scrollToFirstPianoKeyboard(retries = 15) {
       document.querySelector('[data-step-index="1"]');
 
     const el = pianoEl || stepCard;
+    const isPanelVisible = Boolean(panel && panel.offsetParent !== null && panel.clientHeight > 0);
 
-    if (panel && el) {
+    if (panel && el && isPanelVisible) {
       const panelRect = panel.getBoundingClientRect();
       const elRect = el.getBoundingClientRect();
       const stickyBar = document.getElementById('workshop-tonality-progression-bar');
@@ -31,21 +32,21 @@ export function scrollToFirstPianoKeyboard(retries = 15) {
       setTimeout(() => {
         el.classList.remove('ring-4', 'ring-amber-400', 'shadow-2xl', 'shadow-amber-500/40');
       }, 1500);
+    } else if (attemptsLeft > 0) {
+      setTimeout(() => tryScroll(attemptsLeft - 1), 50);
     } else if (el) {
       el.scrollIntoView({
         behavior: 'smooth',
         block: 'center',
         inline: 'nearest',
       });
-    } else if (attemptsLeft > 0) {
-      setTimeout(() => tryScroll(attemptsLeft - 1), 60);
     }
   };
 
   // Delay to allow tab display transition (hidden -> block) and layout rendering
   setTimeout(() => {
     requestAnimationFrame(() => tryScroll(retries));
-  }, 50);
+  }, 60);
 }
 
 /**

@@ -466,45 +466,41 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   // Check if a progression is natively minor
   const isProgressionMinor = (prog: FamousProgression): boolean => {
     const k = prog.key.toLowerCase();
-    if (k.includes('moll') || k.includes('minor') || k.endsWith('m')) return true;
+    if (k.includes('moll') || k.includes('minor')) return true;
+    if (k.includes('dur') || k.includes('major')) return false;
+
     const tonicStep = prog.steps.find((st) => {
       const d = st.degree.trim();
-      return (d === 'I' || d === 'i' || d.startsWith('I') || d.startsWith('i')) && !d.startsWith('IV') && !d.startsWith('iv');
+      return (
+        d === 'I' ||
+        d === 'i' ||
+        d.startsWith('I ') ||
+        d.startsWith('i ') ||
+        d.startsWith('I(') ||
+        d.startsWith('i(') ||
+        d.startsWith('Imaj') ||
+        d.startsWith('I7') ||
+        d.startsWith('i7')
+      ) && !d.startsWith('IV') && !d.startsWith('iv');
     });
+
     if (tonicStep) {
       const d = tonicStep.degree.trim();
       if (d === 'i' || d.startsWith('i')) return true;
       const parsed = parseChordSymbol(tonicStep.symbol);
-      if (parsed.quality === 'minor' || parsed.quality === 'min7' || parsed.quality === 'minor6' || parsed.quality === 'm7b5') return true;
+      return parsed.quality === 'minor' || parsed.quality === 'min7' || parsed.quality === 'minor6' || parsed.quality === 'm7b5';
     }
-    return Boolean(prog.steps[0]?.symbol.endsWith('m')) || Boolean(prog.steps[0]?.symbol.endsWith('m7'));
+
+    return false;
   };
 
   // Get active key root for a given progression (custom override or global)
+  // Preserves the EXACT root selected by the user without unwanted relative shifts!
   const getActiveKeyForProg = (prog: FamousProgression): NoteName => {
     if (cardKeyOverrides[prog.id]) {
       return cardKeyOverrides[prog.id];
     }
-    const isMinor = isProgressionMinor(prog);
-    if (globalKeyMode === 'minor') {
-      // If user selected global minor mode (e.g. A-moll or E-moll):
-      if (isMinor) {
-        return globalKeyRoot;
-      } else {
-        // Major song in minor key selection -> use parallel/relative major (+3 semitones)
-        const idx = NOTE_NAMES.indexOf(globalKeyRoot);
-        return NOTE_NAMES[(idx + 3) % 12];
-      }
-    } else {
-      // Global major mode:
-      if (!isMinor) {
-        return globalKeyRoot;
-      } else {
-        // Minor song in major key selection -> use relative minor (+9 semitones)
-        const idx = NOTE_NAMES.indexOf(globalKeyRoot);
-        return NOTE_NAMES[(idx + 9) % 12];
-      }
-    }
+    return globalKeyRoot;
   };
 
   // Compute transposed steps and chords for a progression

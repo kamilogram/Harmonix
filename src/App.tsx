@@ -20,7 +20,8 @@ import { TheoryModal } from './components/TheoryModal';
 import { CircleOfFifths } from './components/CircleOfFifths';
 import { ProgressionLibrary, LoadedProgressionMetadata } from './components/ProgressionLibrary';
 import { FreePlaySandbox } from './components/FreePlaySandbox';
-import { scrollToTonalityProgressionBar, scrollToLoadedProgressionCard } from './utils/scrollHelper';
+import { ChordQuizGame } from './components/ChordQuizGame';
+import { scrollToTonalityProgressionBar, scrollToLoadedProgressionCard, scrollToFirstPianoKeyboard } from './utils/scrollHelper';
 import { recordPatternLoad } from './utils/sessionTracker';
 import {
   Sparkles,
@@ -29,7 +30,7 @@ import {
 } from 'lucide-react';
 
 export default function App() {
-  const [activeView, setActiveView] = useState<'workshop' | 'library' | 'circle' | 'sandbox'>('workshop');
+  const [activeView, setActiveView] = useState<'workshop' | 'library' | 'guess' | 'circle' | 'sandbox'>('workshop');
   const [isTheoryOpen, setIsTheoryOpen] = useState(false);
   const [convention, setConvention] = useState<NamingConvention>('international');
   const [isMuted, setIsMuted] = useState(false);
@@ -116,12 +117,11 @@ export default function App() {
     if (metadata?.progName) {
       recordPatternLoad(metadata.progName, metadata.keyName, metadata.degrees);
     }
-    if (!options?.skipScrollToTonalityBar) {
-      scrollToTonalityProgressionBar();
-    }
+    // User Request: Na kliknięcie "wstaw do warsztatu" w zakładce wzorce jak aplikacja przechodzi do zakładki "ćwiczenia" niech też się scrolluje do pierwszej klawiatury
+    scrollToFirstPianoKeyboard();
   };
 
-  const handleViewChange = useCallback((view: 'workshop' | 'library' | 'circle' | 'sandbox') => {
+  const handleViewChange = useCallback((view: 'workshop' | 'library' | 'guess' | 'circle' | 'sandbox') => {
     setActiveView(view);
     if (view === 'library') {
       scrollToLoadedProgressionCard(loadedProgressionId);
@@ -158,6 +158,13 @@ export default function App() {
             className="hover:text-amber-400 transition-colors cursor-pointer"
           >
             Wzorce
+          </button>
+          <button
+            type="button"
+            onClick={() => handleViewChange('guess')}
+            className="hover:text-amber-400 transition-colors cursor-pointer"
+          >
+            Odgadnij Akord
           </button>
           <button
             type="button"
@@ -300,7 +307,27 @@ export default function App() {
           </div>
         </div>
 
-        {/* TAB 3: Interactive Circle of Fifths (Physical Tab with independent scroll) */}
+        {/* TAB 3: Odgadnij Akord (Reverse Chord Quiz - Physical Tab with independent scroll) */}
+        <div
+          id="tabpanel-guess"
+          role="tabpanel"
+          aria-label="Odgadnij Akord"
+          className={`absolute inset-0 overflow-y-auto ${
+            activeView === 'guess' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1">
+              <ChordQuizGame
+                convention={convention}
+                isActiveTab={activeView === 'guess'}
+              />
+            </div>
+            {renderFooter()}
+          </div>
+        </div>
+
+        {/* TAB 4: Interactive Circle of Fifths (Physical Tab with independent scroll) */}
         <div
           id="tabpanel-circle"
           role="tabpanel"

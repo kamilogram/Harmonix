@@ -33,6 +33,8 @@ interface PianoKeyboardProps {
   convention?: NamingConvention;
   idPrefix?: string;
   playedChordInfo?: PlayedChordHeaderInfo | null;
+  autoCenterOnNotes?: boolean;
+  activeTabVisible?: boolean;
   // Synchronized scrolling across all keyboard rows
   onSyncScroll?: (scrollLeft: number, sourceId: string) => void;
   onSyncScrollBy?: (delta: number) => void;
@@ -88,6 +90,8 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
   convention = 'international',
   idPrefix = 'piano',
   playedChordInfo = null,
+  autoCenterOnNotes = false,
+  activeTabVisible = true,
   onSyncScroll,
   onSyncScrollBy,
   onSyncCenter,
@@ -170,36 +174,103 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
     };
   }, [keys, onSyncScroll, idPrefix]);
 
-  // Center on relevant notes
-  const centerOnChord = useCallback(() => {
-    if (!scrollContainerRef.current) return;
-    const notesToFocus =
-      selectedMidiNotes.length > 0
-        ? selectedMidiNotes
-        : Object.keys(highlightMap).map(Number);
+  // Center on relevant notes so all marked keys are in the center
+  const centerOnChord = useCallback(
+    (smoothOption?: boolean | React.MouseEvent) => {
+      const smooth = typeof smoothOption === 'boolean' ? smoothOption : true;
+      const container = scrollContainerRef.current;
+      if (!container) return;
 
-    if (notesToFocus.length === 0) return;
+      const notesToFocus =
+        selectedMidiNotes.length > 0
+          ? selectedMidiNotes
+          : Object.keys(highlightMap).map(Number);
 
-    const avgMidi =
-      notesToFocus.reduce((sum, m) => sum + m, 0) / notesToFocus.length;
+      if (notesToFocus.length === 0) return;
 
-    const whiteKeysBefore = keys.filter(
-      (k) => k.midi <= avgMidi && !k.isBlack
-    ).length;
-    const whiteKeyWidthPx = 36;
-    const targetX = whiteKeysBefore * whiteKeyWidthPx;
-    const containerWidth = scrollContainerRef.current.clientWidth;
-    const targetLeft = Math.max(0, targetX - containerWidth / 2);
+      const containerWidth = container.clientWidth;
+      if (containerWidth <= 0) return;
 
-    if (onSyncCenter) {
-      onSyncCenter(targetLeft);
-    } else {
-      scrollContainerRef.current.scrollTo({
-        left: targetLeft,
-        behavior: 'smooth',
+      const whiteKeyWidthPx = 36;
+      const blackKeyWidthPx = 22;
+
+      let minX = Infinity;
+      let maxX = -Infinity;
+
+      notesToFocus.forEach((m) => {
+        const keyObj = keys.find((k) => k.midi === m);
+        if (!keyObj) return;
+
+        const whiteKeysBefore = keys.filter((x) => x.midi < m && !x.isBlack).length;
+        if (keyObj.isBlack) {
+          const left = whiteKeysBefore * whiteKeyWidthPx - blackKeyWidthPx / 2;
+          const right = left + blackKeyWidthPx;
+          if (left < minX) minX = left;
+          if (right > maxX) maxX = right;
+        } else {
+          const left = whiteKeysBefore * whiteKeyWidthPx;
+          const right = left + whiteKeyWidthPx;
+          if (left < minX) minX = left;
+          if (right > maxX) maxX = right;
+        }
       });
-    }
-  }, [selectedMidiNotes, highlightMap, keys, onSyncCenter]);
+
+      if (minX === Infinity || maxX === -Infinity) return;
+
+      // True midpoint of all selected keys on the piano keyboard
+      const chordCenter = (minX + maxX) / 2;
+      const maxScroll = Math.max(0, container.scrollWidth - containerWidth);
+      const targetLeft = Math.max(0, Math.min(maxScroll, chordCenter - containerWidth / 2));
+
+      if (onSyncCenter) {
+        onSyncCenter(targetLeft);
+      } else {
+        container.scrollTo({
+          left: targetLeft,
+          behavior: smooth ? 'smooth' : 'auto',
+        });
+      }
+    },
+    [selectedMidiNotes, highlightMap, keys, onSyncCenter]
+  );
+
+  // Automatically scroll so all selected notes are centered horizontally
+  useEffect(() => {
+    if (!autoCenterOnNotes || !activeTabVisible) return;
+    if (selectedMidiNotes.length === 0 && Object.keys(highlightMap).length === 0) return;
+
+    // Small timeout ensures container clientWidth has settled in DOM
+    const timer = setTimeout(() => {
+      centerOnChord(true);
+    }, 40);
+
+    const timer2 = setTimeout(() => {
+      centerOnChord(true);
+    }, 180);
+
+    return () => {
+      clearTimeout(timer);
+      clearTimeout(timer2);
+    };
+  }, [selectedMidiNotes, highlightMap, autoCenterOnNotes, activeTabVisible, centerOnChord]);
+
+  // Keep centered when container resizes or tab becomes visible
+  useEffect(() => {
+    if (!autoCenterOnNotes || !activeTabVisible) return;
+    const container = scrollContainerRef.current;
+    if (!container || typeof ResizeObserver === 'undefined') return;
+
+    const ro = new ResizeObserver((entries) => {
+      for (const entry of entries) {
+        if (entry.contentRect.width > 0) {
+          centerOnChord(false);
+        }
+      }
+    });
+
+    ro.observe(container);
+    return () => ro.disconnect();
+  }, [autoCenterOnNotes, activeTabVisible, centerOnChord]);
 
   // Computer keyboard listener
   useEffect(() => {
@@ -347,7 +418,7 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
           {selectedMidiNotes.length > 0 && (
             <button
               type="button"
-              onClick={centerOnChord}
+              onClick={() => centerOnChord(true)}
               title="Centruj na akordzie"
               className="flex items-center gap-1 px-1.5 py-0.5 text-[10px] font-semibold text-sky-400 hover:text-sky-300 bg-sky-500/10 hover:bg-sky-500/20 rounded cursor-pointer transition-colors"
             >
