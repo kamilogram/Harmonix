@@ -27,6 +27,7 @@ export type PolishNoteName =
   | 'H';
 
 export type ChordQuality =
+  | 'power5'
   | 'major'
   | 'minor'
   | 'dom7'
@@ -41,7 +42,15 @@ export type ChordQuality =
   | 'sus2'
   | 'sus4'
   | 'dom7sus4'
-  | 'add9';
+  | 'add9'
+  | 'dom9'
+  | 'maj9'
+  | 'min9'
+  | 'sixNine'
+  | 'minSixNine'
+  | 'dom7b9'
+  | 'dom7sharp9'
+  | 'nineSus4';
 
 export interface ChordDefinition {
   root: NoteName;

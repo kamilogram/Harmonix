@@ -60,6 +60,7 @@ export function getFullNoteLabel(note: NoteName, convention: NamingConvention = 
 
 // Semitone intervals
 export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
+  power5: [0, 7],
   major: [0, 4, 7],
   minor: [0, 3, 7],
   dom7: [0, 4, 7, 10],
@@ -75,12 +76,21 @@ export const CHORD_INTERVALS: Record<ChordQuality, number[]> = {
   sus4: [0, 5, 7],
   dom7sus4: [0, 5, 7, 10],
   add9: [0, 2, 4, 7],
+  dom9: [0, 4, 7, 10, 14],
+  maj9: [0, 4, 7, 11, 14],
+  min9: [0, 3, 7, 10, 14],
+  sixNine: [0, 4, 7, 9, 14],
+  minSixNine: [0, 3, 7, 9, 14],
+  dom7b9: [0, 4, 7, 10, 13],
+  dom7sharp9: [0, 4, 7, 10, 15],
+  nineSus4: [0, 5, 7, 10, 14],
 };
 
 export const CHORD_QUALITY_NAMES: Record<
   ChordQuality,
   { pl: string; intl: string; desc: string; category: string }
 > = {
+  power5: { pl: '5 (kwintowy / power chord)', intl: '5', desc: 'Potężny, surowy rockowy akord bez tercji (2 dźwięki: pryma + kwinta)', category: 'Kwintowe & Rock' },
   major: { pl: 'dur', intl: 'maj', desc: 'Jasny, stabilny, radosny', category: 'Trójdźwięki' },
   minor: { pl: 'moll', intl: 'm', desc: 'Melancholijny, intymny, głęboki', category: 'Trójdźwięki' },
   dom7: { pl: '7 (dominantowy)', intl: '7', desc: 'Napięty, bluesowy, z mocnym dążeniem', category: 'Septymowe' },
@@ -96,12 +106,24 @@ export const CHORD_QUALITY_NAMES: Record<
   sus4: { pl: 'sus4 (zawieszona 4)', intl: 'sus4', desc: 'Wzniosły, hymn, napięcie przed rozwiązaniem', category: 'Zawieszone' },
   dom7sus4: { pl: '7sus4', intl: '7sus4', desc: 'Współczesny popowy dominanta', category: 'Zawieszone' },
   add9: { pl: 'add9 (dodana nona)', intl: 'add9', desc: 'Świeży, słoneczny hymn Coldplay', category: 'Szóstki & Nony' },
+  dom9: { pl: '9 (dominantowy nonowy)', intl: '9', desc: 'Bogaty funk, soul i jazz z dodaną noną wielką (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  maj9: { pl: 'maj9 (wielka septyma + nona)', intl: 'maj9', desc: 'Eteryczny, aksamitny, neo-soul & modern jazz (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  min9: { pl: 'm9 (molowy z noną)', intl: 'm9', desc: 'Głęboki, melancholijny lo-fi, R&B i ballady (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  sixNine: { pl: '6/9 (sekstowo-nonowy)', intl: '6/9', desc: 'Lśniący, bossa nova, filmowy i impresjonistyczny (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  minSixNine: { pl: 'm6/9 (molowy sekstowo-nonowy)', intl: 'm6/9', desc: 'Tajemniczy, film noir z noną (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  dom7b9: { pl: '7b9 (septyma z obniżoną noną)', intl: '7b9', desc: 'Mroczne, hiszpańskie/jazzowe napięcie dążące do toniki (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  dom7sharp9: { pl: '7#9 (Hendrix chord / nona zw.)', intl: '7#9', desc: 'Kultowy akord Hendrixa ("Purple Haze"), psychodeliczny blues (5 dźwięków)', category: 'Akordy 5-dźwiękowe' },
+  nineSus4: { pl: '9sus4 (zawieszona 4 + nona)', intl: '9sus4', desc: 'Przestrzenny gospel/fusion akord 11-sty (5 dźwięków)', category: 'Zawieszone' },
 };
 
 export const QUALITY_CATEGORIES = [
   {
-    name: 'Podstawowe trójdźwięki',
-    qualities: ['major', 'minor'] as ChordQuality[],
+    name: 'Podstawowe trójdźwięki & Kwintowe',
+    qualities: ['power5', 'major', 'minor'] as ChordQuality[],
+  },
+  {
+    name: 'Akordy 5-dźwiękowe (Rozbudowane)',
+    qualities: ['dom9', 'maj9', 'min9', 'sixNine', 'minSixNine', 'dom7b9', 'dom7sharp9'] as ChordQuality[],
   },
   {
     name: 'Akordy septymowe (Jazz & Soul)',
@@ -109,7 +131,7 @@ export const QUALITY_CATEGORIES = [
   },
   {
     name: 'Zawieszone (Modern Pop & Worship)',
-    qualities: ['sus2', 'sus4', 'dom7sus4'] as ChordQuality[],
+    qualities: ['sus2', 'sus4', 'dom7sus4', 'nineSus4'] as ChordQuality[],
   },
   {
     name: 'Szóstki & Nony (Retro & Kolor)',
@@ -149,7 +171,8 @@ export function createChordDefinition(
   });
 
   let symbol: string = root;
-  if (quality === 'minor') symbol = `${root}m`;
+  if (quality === 'power5') symbol = `${root}5`;
+  else if (quality === 'minor') symbol = `${root}m`;
   else if (quality === 'dom7') symbol = `${root}7`;
   else if (quality === 'maj7') symbol = `${root}maj7`;
   else if (quality === 'min7') symbol = `${root}m7`;
@@ -163,10 +186,19 @@ export function createChordDefinition(
   else if (quality === 'sus4') symbol = `${root}sus4`;
   else if (quality === 'dom7sus4') symbol = `${root}7sus4`;
   else if (quality === 'add9') symbol = `${root}add9`;
+  else if (quality === 'dom9') symbol = `${root}9`;
+  else if (quality === 'maj9') symbol = `${root}maj9`;
+  else if (quality === 'min9') symbol = `${root}m9`;
+  else if (quality === 'sixNine') symbol = `${root}6/9`;
+  else if (quality === 'minSixNine') symbol = `${root}m6/9`;
+  else if (quality === 'dom7b9') symbol = `${root}7b9`;
+  else if (quality === 'dom7sharp9') symbol = `${root}7#9`;
+  else if (quality === 'nineSus4') symbol = `${root}9sus4`;
 
   const plRoot = getNoteLabel(root, 'polish');
   let polishSymbol = `${plRoot}-dur`;
-  if (quality === 'minor') polishSymbol = `${plRoot}-moll`;
+  if (quality === 'power5') polishSymbol = `${plRoot}5`;
+  else if (quality === 'minor') polishSymbol = `${plRoot}-moll`;
   else if (quality === 'dom7') polishSymbol = `${plRoot}7`;
   else if (quality === 'maj7') polishSymbol = `${plRoot}maj7`;
   else if (quality === 'min7') polishSymbol = `${plRoot}m7`;
@@ -180,6 +212,14 @@ export function createChordDefinition(
   else if (quality === 'sus4') polishSymbol = `${plRoot}sus4`;
   else if (quality === 'dom7sus4') polishSymbol = `${plRoot}7sus4`;
   else if (quality === 'add9') polishSymbol = `${plRoot}add9`;
+  else if (quality === 'dom9') polishSymbol = `${plRoot}9`;
+  else if (quality === 'maj9') polishSymbol = `${plRoot}maj9`;
+  else if (quality === 'min9') polishSymbol = `${plRoot}m9`;
+  else if (quality === 'sixNine') polishSymbol = `${plRoot}6/9`;
+  else if (quality === 'minSixNine') polishSymbol = `${plRoot}m6/9`;
+  else if (quality === 'dom7b9') polishSymbol = `${plRoot}7b9`;
+  else if (quality === 'dom7sharp9') polishSymbol = `${plRoot}7#9`;
+  else if (quality === 'nineSus4') polishSymbol = `${plRoot}9sus4`;
 
   return {
     root,
@@ -2042,14 +2082,201 @@ export const FAMOUS_PROGRESSIONS: FamousProgression[] = [
       { symbol: 'C6', degree: 'I6', role: 'Kołyszący finisz frazy' },
     ],
   },
+
+  // ==========================================
+  // 5. BOGATE AKORDY 5-DŹWIĘKOWE (9, maj9, m9, 6/9, m6/9, 7b9, 7#9, 9sus4, 5)
+  // Wzorce współczesne, neo-soul, modern jazz, hendrix funk, gospel i bossa nova
+  // ==========================================
+  {
+    id: 'song_neosoul_glasper_9',
+    name: 'Robert Glasper & Erykah Badu: Neo-Soul 9 (Zwrotka ➔ Refren ➔ Bridge)',
+    genre: 'Neo-Soul / Jazz-Hop / R&B',
+    structure: 'Zwrotka ➔ Refren ➔ Bridge',
+    description: 'Zmysłowy, aksamitny neo-soul z pięciodźwiękami. Luksusowy maj9, soulowy m9, brazylijski 6/9 oraz gospelowe zawieszenie 9sus4 tworzą nowoczesne brzmienie D\'Angelo, H.E.R. i Roberta Glaspera.',
+    key: 'C-dur',
+    steps: [
+      { symbol: 'Cmaj9', degree: 'Imaj9', role: 'Luksusowa, aksamitna tonika z wielką noną', section: 'Zwrotka' },
+      { symbol: 'Am9', degree: 'vi9', role: 'Głęboka, ciepła paralela molowa z noną', section: 'Zwrotka' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Soulowy krok subdominanty molowej', section: 'Zwrotka' },
+      { symbol: 'G9sus4', degree: 'V9sus4', role: 'Otwarte, wzniosłe zawieszenie dominanty z noną', section: 'Zwrotka' },
+      { symbol: 'Fmaj9', degree: 'IVmaj9', role: 'Eksplozja ciepła i uniesienie refrenu', section: 'Refren' },
+      { symbol: 'Em9', degree: 'iii9', role: 'Łagodne, intymne zmatowienie barwy', section: 'Refren' },
+      { symbol: 'A7b9', degree: 'VI7b9', role: 'Ognista dominanta z małą noną wiodąca do Dm9', section: 'Refren' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Rozwiązanie dominanty w aksamitny m9', section: 'Refren' },
+      { symbol: 'G9', degree: 'V9', role: 'Pełna dominanta nonowa w kole kwintowym', section: 'Refren' },
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Kojący, słodki pentachord toniki (6 i 9)', section: 'Bridge' },
+      { symbol: 'Fm6/9', degree: 'iv6/9', role: 'Niezwykle zmysłowe zapożyczenie molowe z 6 i 9!', section: 'Bridge' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Uspokojenie narracji w lo-fi pulsie', section: 'Bridge' },
+      { symbol: 'G9sus4', degree: 'V9sus4', role: 'Gospelowe zawieszenie przed powrotem do Imaj9', section: 'Bridge' },
+    ],
+  },
+  {
+    id: 'jazz_two_five_one_altered',
+    name: 'Jazz Modern 2-5-1 & Dominanty Alterowane (ii9 - V7b9 - Imaj9 - VI7#9)',
+    genre: 'Jazz / Bebop / Modern Jazz',
+    structure: 'Cykl 5-Dźwiękowy 2-5-1 z Alteracją',
+    description: 'Fundament nowoczesnego jazzu i fusion. Pięciodźwiękowe akordy rozszerzone i alterowane: ii stopień m9, dominanta z małą noną 7b9, lądowanie na maj9 oraz wtrącony akord Hendriksa 7#9.',
+    key: 'C-dur',
+    steps: [
+      { symbol: 'Dm9', degree: 'ii9', role: 'Śpiewny, miękki wstęp kadencji jazzowej na drugim stopniu' },
+      { symbol: 'G7b9', degree: 'V7b9', role: 'Ciemna, pikantna dominanta z małą noną (dźwięk As)' },
+      { symbol: 'Cmaj9', degree: 'Imaj9', role: 'Aksamitne lądowanie w durowej tonice z wielką noną' },
+      { symbol: 'A7#9', degree: 'VI7#9', role: 'Płomienna dominanta wtrącona z podwyższoną noną (#9)' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Powrót na drugi stopień' },
+      { symbol: 'G9sus4', degree: 'V9sus4', role: 'Przestrzenne zawieszenie dominantowe' },
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Słodki brazylijsko-jazzowy finał z sekstą i noną' },
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Wybrzmienie pełnej harmonii' },
+    ],
+  },
+  {
+    id: 'rock_hendrix_psychedelic',
+    name: 'Jimi Hendrix: Akord Purpury & Funk Rock (7#9 / 9 / 5)',
+    genre: 'Rock / Funk Rock / Hendrix',
+    structure: 'Psychodeliczny Riff 7#9 ➔ Funkowy Groove',
+    description: 'Legendarny "Hendrix Chord" (E7#9) z podwyższoną noną #9 dającą jednoczesną tercję wielką i "małą". Połączony z potężnym power chordem 5 i dominantą 9 w stylu "Purple Haze" i "Foxey Lady".',
+    key: 'E-moll',
+    steps: [
+      { symbol: 'E7#9', degree: 'i7#9', role: 'Kultowy Hendrix Chord: tercja wielka + podwyższona nona!' },
+      { symbol: 'G5', degree: 'bIII5', role: 'Surowy, potężny power chord bez tercji' },
+      { symbol: 'A5', degree: 'IV5', role: 'Wznoszący gitarowy riff kwintowy' },
+      { symbol: 'E7#9', degree: 'i7#9', role: 'Powrót psychodelicznego spięcia w E' },
+      { symbol: 'D9', degree: 'bVII9', role: 'Funkowa dominanta nonowa w stylu Motown' },
+      { symbol: 'A9', degree: 'IV9', role: 'Rozkołysany funk na subdominancie' },
+      { symbol: 'C7', degree: 'bVI7', role: 'Mocne ciążenie chromatyczne w dół' },
+      { symbol: 'B7#9', degree: 'V7#9', role: 'Eksplozywny alterowany zwrot dominantowy do E' },
+    ],
+  },
+  {
+    id: 'bossa_ipanema_five_note',
+    name: 'Bossa Nova Jobima z 5 Dźwiękami (6/9, m9, 9, m6/9)',
+    genre: 'Jazz / Bossa Nova (Tom Jobim)',
+    structure: 'Słoneczna Bossa Plażowa',
+    description: 'Oryginalne 5-dźwiękowe voicingi brazylijskich mistrzów bossa novy (Jobim, Gilberto). Zamiast surowych trójdźwięków: słodki pentachord C6/9, głęboki Dm9, dominanta G9 oraz mroczne zapożyczenie Fm6/9.',
+    key: 'C-dur',
+    steps: [
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Słoneczny, aksamitny pentachord na plaży w Rio' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Kołyszący drugi stopień z rozszerzeniem nonowym' },
+      { symbol: 'G9', degree: 'V9', role: 'Ciepły puls dominanty nonowej' },
+      { symbol: 'Em9', degree: 'iii9', role: 'Wyjście w górne rejestry melodii z noną' },
+      { symbol: 'A7b9', degree: 'VI7b9', role: 'Pikantna dominanta wtrącona z małą noną' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Rozwiązanie dominanty ku drugiemu stopniowi' },
+      { symbol: 'Fm6/9', degree: 'iv6/9', role: 'Magiczne brazylijskie zapożyczenie z 6 i 9!' },
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Ciepłe, ukojone domknięcie frazy' },
+    ],
+  },
+  {
+    id: 'gospel_praise_9sus4',
+    name: 'Gospel Praise & Soulful 11th (9sus4 / maj9 / m9)',
+    genre: 'Gospel / Soul / Modern Praise',
+    structure: 'Wzniosły Łuk Uwielbienia Gospel',
+    description: 'Potężny, majestatyczny hymn gospel (Kirk Franklin, Cory Henry). Legendarny akord "Gospel 11th" (9sus4) tworzący wzniosłe uniesienie, przechodzący w promienny maj9 i głęboki m9.',
+    key: 'C-dur',
+    steps: [
+      { symbol: 'Fmaj9', degree: 'IVmaj9', role: 'Wzniosłe, szerokie otwarcie subdominanty z noną' },
+      { symbol: 'G9sus4', degree: 'V9sus4', role: 'Słynny akord Gospel 11th – monumentalne uniesienie' },
+      { symbol: 'Em9', degree: 'iii9', role: 'Aksamitny krok po stopniach gamy w dół' },
+      { symbol: 'Am9', degree: 'vi9', role: 'Głęboka, soulowa odpowiedź basu' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Przygotowanie kulminacji z noną' },
+      { symbol: 'G7b9', degree: 'V7b9', role: 'Napięta dominanta z ciemną małą noną' },
+      { symbol: 'Cmaj9', degree: 'Imaj9', role: 'Triumfalne, krystaliczne ukojenie w tonice' },
+      { symbol: 'C6/9', degree: 'I6/9', role: 'Rozpromieniony finisz z sekstą i noną' },
+    ],
+  },
+  {
+    id: 'cinematic_dark_mystery_b9',
+    name: 'Mroczny Thriller Psychologiczny (m9 / 7b9 / 7#9)',
+    genre: 'Film / Thriller & Suspense / Score',
+    structure: 'Gęsty Mrok & Piekielne Napięcie',
+    description: 'Filmowa harmonia suspensu i hipnotyzującego niepokoju. Dominanta molowa z małą noną (E7b9) i wybuchowy akord z podwyższoną noną (E7#9) w połączeniu z głębokim Am9 budują ciarki na plecach.',
+    key: 'A-moll',
+    steps: [
+      { symbol: 'Am9', degree: 'i9', role: 'Chłodny, niski puls mrocznego syntezatora z noną B' },
+      { symbol: 'Fmaj9', degree: 'VImaj9', role: 'Widmowe uniesienie symfoniczne z wielką septymą i noną' },
+      { symbol: 'Dm9', degree: 'iv9', role: 'Niebezpieczny cień subdominanty molowej' },
+      { symbol: 'E7b9', degree: 'V7b9', role: 'Mrożący krew w żyłach akord dominanty z małą noną' },
+      { symbol: 'Am9', degree: 'i9', role: 'Cisza przed burzą w molowej tonice' },
+      { symbol: 'Dm9', degree: 'iv9', role: 'Kroki prześladowcy w deszczu' },
+      { symbol: 'E7#9', degree: 'V7#9', role: 'Elektryzujący wybuch grozy z podwyższoną noną!' },
+      { symbol: 'Am9', degree: 'i9', role: 'Ostateczne, dymne wybrzmienie suspensu' },
+    ],
+  },
+  {
+    id: 'synthwave_dream_chill_9',
+    name: 'Synthwave & Chillwave Dream (maj9 / m9 / 9sus4 / 6/9)',
+    genre: 'Pop / Synthwave / Lo-Fi Dream',
+    structure: 'Neonowa Nocna Przejażdżka',
+    description: 'Nostalgiczny, neonowy retro-futuryzm (The Midnight, Kavinsky, Timecop1983). Błyszczące arpeggia syntezatorów oparte na 5-dźwiękach maj9, m9 i 9sus4 rozświetlają nocną autostradę.',
+    key: 'C-dur',
+    steps: [
+      { symbol: 'Cmaj9', degree: 'Imaj9', role: 'Błyszczący, kryształowy arpeggiator syntezatora' },
+      { symbol: 'Am9', degree: 'vi9', role: 'Nostalgiczny, ciepły bas analogowy z lat 80.' },
+      { symbol: 'Fmaj9', degree: 'IVmaj9', role: 'Szeroki pad z wielką noną jak zachód słońca' },
+      { symbol: 'G9sus4', degree: 'V9sus4', role: 'Eteryczne zawieszenie nad neonowym miastem' },
+      { symbol: 'Dm9', degree: 'ii9', role: 'Nocny, samotny motyw driving synth' },
+      { symbol: 'Em9', degree: 'iii9', role: 'Melancholijny oddech w wysokich rejestrach' },
+      { symbol: 'F6/9', degree: 'IV6/9', role: 'Promienne, słodkie połączenie seksty i nony' },
+      { symbol: 'G9', degree: 'V9', role: 'Dynamiczny rozbieg do powtórzenia pętli' },
+    ],
+  },
+  {
+    id: 'rock_power_riff_5',
+    name: 'Hard Rock & Punk Power Chords (Riffy na Akordach Kwintowych 5)',
+    genre: 'Rock / Hard Rock / Punk',
+    structure: 'Surowy Riff Stadionowy (Akordy 5)',
+    description: 'Czysta energia przesteru gitarowego (Nirvana, Green Day, AC/DC). Surowe kwinty bez tercji (akordy 5), które pompują adrenalinę i dają potężną ścianę dźwięku.',
+    key: 'A-moll',
+    steps: [
+      { symbol: 'A5', degree: 'i5', role: 'Mocne, surowe uderzenie power chordu w przesterze' },
+      { symbol: 'C5', degree: 'bIII5', role: 'Czysty rockowy skok o tercję małą w górę' },
+      { symbol: 'D5', degree: 'iv5', role: 'Potężny bas subdominanty kwintowej' },
+      { symbol: 'F5', degree: 'bVI5', role: 'Maksymalny napęd i ciężar ściany dźwięku' },
+      { symbol: 'G5', degree: 'bVII5', role: 'Stadionowy krok całotonowy pompujący energię' },
+      { symbol: 'E5', degree: 'V5', role: 'Zwieńczenie frazy przed kolejnym taktem' },
+      { symbol: 'A5', degree: 'i5', role: 'Triumfalne domknięcie riffu' },
+      { symbol: 'A5', degree: 'i5', role: 'Wybrzmienie z sustainem lampowego wzmacniacza' },
+    ],
+  },
 ];
+
+/**
+ * 5-note chord qualities and detection utilities
+ */
+export const FIVE_NOTE_QUALITIES: ChordQuality[] = [
+  'dom9',
+  'maj9',
+  'min9',
+  'sixNine',
+  'minSixNine',
+  'dom7b9',
+  'dom7sharp9',
+  'nineSus4',
+];
+
+export function hasFiveNoteChords(prog: FamousProgression): boolean {
+  return prog.steps.some((step) => {
+    const parsed = parseChordSymbol(step.symbol);
+    return FIVE_NOTE_QUALITIES.includes(parsed.quality);
+  });
+}
+
+export function getFiveNoteChordsInProgression(prog: FamousProgression): string[] {
+  const result = new Set<string>();
+  prog.steps.forEach((step) => {
+    const parsed = parseChordSymbol(step.symbol);
+    if (FIVE_NOTE_QUALITIES.includes(parsed.quality)) {
+      result.add(step.symbol);
+    }
+  });
+  return Array.from(result);
+}
 
 /**
  * Parse any chord symbol into root NoteName and ChordQuality
  */
 export function parseChordSymbol(symbol: string): { root: NoteName; quality: ChordQuality } {
   let clean = symbol.trim();
-  if (clean.includes('/')) {
+  // Preserve 6/9 and m6/9 compound extensions before stripping slash-bass
+  if (clean.includes('/') && !clean.match(/[6m]\/9/i)) {
     clean = clean.split('/')[0].trim();
   }
 
@@ -2117,9 +2344,20 @@ export function parseChordSymbol(symbol: string): { root: NoteName; quality: Cho
   rest = rest.replace(/^[\s-]+/, '').trim().toLowerCase();
 
   let quality: ChordQuality = 'major';
-  if (rest === 'm7b5' || rest === 'ø' || rest === 'ø7') quality = 'm7b5';
+  if (rest === 'm6/9' || rest === 'm69' || rest === 'min6/9' || rest === 'min69' || rest === 'moll6/9') quality = 'minSixNine';
+  else if (rest === '6/9' || rest === '69' || rest === 'dur6/9') quality = 'sixNine';
+  else if (rest === 'maj9' || rest === 'dur9') quality = 'maj9';
+  else if (rest === 'm9' || rest === 'min9' || rest === 'moll9') quality = 'min9';
+  else if (rest === '7b9' || rest === '7-9') quality = 'dom7b9';
+  else if (rest === '7#9' || rest === '7+9') quality = 'dom7sharp9';
+  else if (rest === '9sus4' || rest === '9sus') quality = 'nineSus4';
+  else if (rest === 'dom9') quality = 'dom9';
+  else if (rest === '9') quality = 'dom9';
+  else if (rest === 'add9') quality = 'add9';
+  else if (rest === '5' || rest === 'power5') quality = 'power5';
+  else if (rest === 'm7b5' || rest === 'ø' || rest === 'ø7') quality = 'm7b5';
   else if (rest === 'm7' || rest === 'min7' || rest === 'moll7') quality = 'min7';
-  else if (rest === 'maj7' || rest === 'm7' && clean.toLowerCase().includes('maj') || rest === 'dur7') quality = 'maj7';
+  else if (rest === 'maj7' || (rest === 'm7' && clean.toLowerCase().includes('maj')) || rest === 'dur7') quality = 'maj7';
   else if (rest === '7sus4' || rest === 'dom7sus4') quality = 'dom7sus4';
   else if (rest === '7' || rest === 'dom7') quality = 'dom7';
   else if (rest === 'm' || rest === 'min' || rest === 'moll' || rest.startsWith('moll')) quality = 'minor';
@@ -2128,7 +2366,6 @@ export function parseChordSymbol(symbol: string): { root: NoteName; quality: Cho
   else if (rest === 'aug' || rest === '+' || rest === 'augmented' || rest === 'aug7' || rest === '+7' || rest === '7#5') quality = 'augmented';
   else if (rest === 'sus4') quality = 'sus4';
   else if (rest === 'sus2') quality = 'sus2';
-  else if (rest === 'add9' || rest === '9') quality = 'add9';
   else if (rest === 'm6' || rest === 'min6' || rest === 'moll6') quality = 'minor6';
   else if (rest === '6') quality = 'major6';
   else if (rest === 'dur' || rest.startsWith('dur')) quality = 'major';
@@ -2262,6 +2499,43 @@ export function detectChordFromNotes(midiNotes: number[]): string | null {
     // add9 [0, 2, 4, 7]
     if (intervals.length === 4 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 4 && intervals[3] === 7) {
       return `${rootName}add9`;
+    }
+    // Power chord 5 [0, 7]
+    if (intervals.length === 2 && intervals[0] === 0 && intervals[1] === 7) {
+      return `${rootName}5 (${getNoteLabel(rootName, 'polish')}5)`;
+    }
+    // 5-note chords:
+    // Dominant 9th [0, 2, 4, 7, 10]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 4 && intervals[3] === 7 && intervals[4] === 10) {
+      return `${rootName}9`;
+    }
+    // Major 9th [0, 2, 4, 7, 11]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 4 && intervals[3] === 7 && intervals[4] === 11) {
+      return `${rootName}maj9`;
+    }
+    // Minor 9th [0, 2, 3, 7, 10]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 3 && intervals[3] === 7 && intervals[4] === 10) {
+      return `${rootName}m9`;
+    }
+    // 6/9 [0, 2, 4, 7, 9]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 4 && intervals[3] === 7 && intervals[4] === 9) {
+      return `${rootName}6/9`;
+    }
+    // m6/9 [0, 2, 3, 7, 9]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 3 && intervals[3] === 7 && intervals[4] === 9) {
+      return `${rootName}m6/9`;
+    }
+    // 7b9 [0, 1, 4, 7, 10]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 1 && intervals[2] === 4 && intervals[3] === 7 && intervals[4] === 10) {
+      return `${rootName}7b9`;
+    }
+    // 7#9 [0, 3, 4, 7, 10]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 3 && intervals[2] === 4 && intervals[3] === 7 && intervals[4] === 10) {
+      return `${rootName}7#9`;
+    }
+    // 9sus4 [0, 2, 5, 7, 10]
+    if (intervals.length === 5 && intervals[0] === 0 && intervals[1] === 2 && intervals[2] === 5 && intervals[3] === 7 && intervals[4] === 10) {
+      return `${rootName}9sus4`;
     }
   }
 

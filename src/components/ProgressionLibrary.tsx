@@ -12,6 +12,8 @@ import {
   parseChordSymbol,
   NOTE_NAMES,
   getNoteLabel,
+  hasFiveNoteChords,
+  getFiveNoteChordsInProgression,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { scrollToLoadedProgressionCard } from '../utils/scrollHelper';
@@ -98,6 +100,7 @@ export function getProgressionRomanFormula(prog: FamousProgression): {
 }
 
 export type ProgressionFormType = 'all' | 'progression' | 'song';
+export type ChordComplexityFilter = 'all' | 'with_5note' | 'only_standard';
 
 export function isProgressionFullSong(prog: FamousProgression): boolean {
   return prog.steps.some((s) => Boolean(s.section)) || prog.id.startsWith('song_');
@@ -133,6 +136,14 @@ export function calculateProgressionDifficulty(prog: FamousProgression): Progres
     const deg = st.degree || '';
 
     if (
+      sym.includes('9') ||
+      sym.includes('7b9') ||
+      sym.includes('7#9') ||
+      sym.includes('6/9') ||
+      deg.includes('9')
+    ) {
+      score += 7; // 5-dźwięki i zaawansowane nony
+    } else if (
       sym.includes('dim') ||
       sym.includes('°') ||
       sym.includes('m7b5') ||
@@ -233,6 +244,7 @@ interface StoredLibrarySettings {
   globalKeyMode?: 'major' | 'minor';
   selectedGenre?: string;
   selectedType?: ProgressionFormType;
+  chordComplexityFilter?: ChordComplexityFilter;
   searchQuery?: string;
   cardKeyOverrides?: Record<string, NoteName>;
   revealedCardIds?: string[];
@@ -250,6 +262,7 @@ function loadStoredSettings(): StoredLibrarySettings {
           globalKeyMode: parsed.globalKeyMode === 'minor' ? 'minor' : 'major',
           selectedGenre: typeof parsed.selectedGenre === 'string' ? parsed.selectedGenre : 'all',
           selectedType: parsed.selectedType === 'progression' || parsed.selectedType === 'song' ? parsed.selectedType : 'all',
+          chordComplexityFilter: parsed.chordComplexityFilter === 'with_5note' || parsed.chordComplexityFilter === 'only_standard' ? parsed.chordComplexityFilter : 'all',
           searchQuery: typeof parsed.searchQuery === 'string' ? parsed.searchQuery : '',
           cardKeyOverrides: parsed.cardKeyOverrides && typeof parsed.cardKeyOverrides === 'object' && !Array.isArray(parsed.cardKeyOverrides) ? parsed.cardKeyOverrides : {},
           revealedCardIds: Array.isArray(parsed.revealedCardIds) ? parsed.revealedCardIds : [],
@@ -269,6 +282,7 @@ function loadStoredSettings(): StoredLibrarySettings {
     globalKeyMode: 'major',
     selectedGenre: 'all',
     selectedType: 'all',
+    chordComplexityFilter: 'all',
     searchQuery: '',
     cardKeyOverrides: {},
     revealedCardIds: [],
@@ -321,9 +335,10 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   // Card key picker popover open state
   const [openCardKeyPickerId, setOpenCardKeyPickerId] = useState<string | null>(null);
 
-  // Active genre filter, form type filter & search query (persisted)
+  // Active genre filter, form type filter, chord complexity filter & search query (persisted)
   const [selectedGenre, setSelectedGenre] = useState<string>(() => stored.selectedGenre || 'all');
   const [selectedType, setSelectedType] = useState<ProgressionFormType>(() => stored.selectedType || 'all');
+  const [chordComplexity, setChordComplexity] = useState<ChordComplexityFilter>(() => stored.chordComplexityFilter || 'all');
   const [searchQuery, setSearchQuery] = useState<string>(() => stored.searchQuery || '');
 
   // Track the ID of the progression that was loaded into the workshop
@@ -359,6 +374,11 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
   const allProgressions = useMemo(() => {
     return [...customProgressions, ...FAMOUS_PROGRESSIONS];
   }, [customProgressions]);
+
+  // Count of progressions featuring 5-note chords
+  const fiveNoteCount = useMemo(() => {
+    return allProgressions.filter((p) => hasFiveNoteChords(p)).length;
+  }, [allProgressions]);
 
   // When switching to the Wzorce tab, smoothly scroll the view to the loaded progression
   const prevActiveViewRef = useRef(isActiveView);
@@ -396,12 +416,13 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       globalKeyMode,
       selectedGenre,
       selectedType,
+      chordComplexityFilter: chordComplexity,
       searchQuery,
       cardKeyOverrides,
       revealedCardIds: Array.from(revealedCardIds),
       lastLoadedProgressionId: lastLoadedProgressionId || undefined,
     });
-  }, [globalKeyRoot, globalKeyMode, selectedGenre, selectedType, searchQuery, cardKeyOverrides, revealedCardIds, lastLoadedProgressionId]);
+  }, [globalKeyRoot, globalKeyMode, selectedGenre, selectedType, chordComplexity, searchQuery, cardKeyOverrides, revealedCardIds, lastLoadedProgressionId]);
 
   const toggleCardChords = (progId: string) => {
     setRevealedCardIds((prev) => {
@@ -687,6 +708,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       if (selectedType === 'song' && !isProgressionFullSong(prog)) {
         return false;
       }
+      if (chordComplexity === 'with_5note' && !hasFiveNoteChords(prog)) {
+        return false;
+      }
+      if (chordComplexity === 'only_standard' && hasFiveNoteChords(prog)) {
+        return false;
+      }
       if (searchQuery.trim()) {
         const q = searchQuery.toLowerCase().trim();
         const matchName = prog.name.toLowerCase().includes(q);
@@ -720,7 +747,7 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     }
 
     return list;
-  }, [allProgressions, customProgressions, selectedGenre, selectedType, searchQuery, lastLoadedProgressionId]);
+  }, [allProgressions, customProgressions, selectedGenre, selectedType, chordComplexity, searchQuery, lastLoadedProgressionId]);
 
   // Popular key presets
   const popularMajorKeys: NoteName[] = ['C', 'G', 'D', 'F', 'A', 'E', 'B'];
@@ -1026,6 +1053,55 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
         </button>
       </div>
 
+      {/* 3rd Row: Chord Complexity Filter Pills (Wszystkie vs Zawierające 5-dźwięki vs Tylko 3- i 4-dźwięki) */}
+      <div className="flex items-center gap-1.5 overflow-x-auto pb-1 scrollbar-none text-xs">
+        <span className="text-slate-400 font-medium mr-1 flex items-center gap-1">
+          <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+          <span>Skład akordów:</span>
+        </span>
+        <button
+          type="button"
+          onClick={() => setChordComplexity('all')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 ${
+            chordComplexity === 'all'
+              ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+          }`}
+        >
+          Wszystkie akordy
+        </button>
+        <button
+          type="button"
+          onClick={() => setChordComplexity('with_5note')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 flex items-center gap-1.5 ${
+            chordComplexity === 'with_5note'
+              ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 font-black shadow-sm ring-2 ring-amber-400/30'
+              : 'bg-slate-900 text-amber-300 hover:text-amber-200 border border-amber-500/30'
+          }`}
+        >
+          <Sparkles className="w-3.5 h-3.5 fill-current" />
+          <span>Zawierające 5-dźwięki (9, 6/9, 7b9, 7#9, 9sus4)</span>
+          <span
+            className={`text-[10px] font-bold px-1.5 py-0.2 rounded-full ${
+              chordComplexity === 'with_5note' ? 'bg-slate-950 text-amber-300' : 'bg-amber-400/20 text-amber-300'
+            }`}
+          >
+            {fiveNoteCount}
+          </span>
+        </button>
+        <button
+          type="button"
+          onClick={() => setChordComplexity('only_standard')}
+          className={`px-3 py-1 rounded-xl font-semibold cursor-pointer transition-all shrink-0 ${
+            chordComplexity === 'only_standard'
+              ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
+              : 'bg-slate-900 text-slate-400 hover:text-slate-200 border border-slate-800'
+          }`}
+        >
+          Tylko klasyczne (3- i 4-dźwięki)
+        </button>
+      </div>
+
       {/* Progressions Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {filteredProgressions.map((prog) => {
@@ -1153,6 +1229,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
                         <span className="text-[10px] font-black text-amber-300 bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
                           <Wand2 className="w-2.5 h-2.5" />
                           <span>Wygenerowany w locie</span>
+                        </span>
+                      )}
+                      {hasFiveNoteChords(prog) && (
+                        <span className="text-[10px] font-black text-amber-300 bg-amber-400/20 border border-amber-400/40 px-2 py-0.5 rounded-full shadow-sm flex items-center gap-1">
+                          <Sparkles className="w-2.5 h-2.5 fill-current" />
+                          <span>5-dźwięki: {getFiveNoteChordsInProgression(prog).join(', ')}</span>
                         </span>
                       )}
                       <span className="text-[11px] font-bold uppercase tracking-wider text-amber-400">

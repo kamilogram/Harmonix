@@ -8,13 +8,15 @@ export type GeneratorArchetype =
   | 'neo_soul'
   | 'gypsy_swing'
   | 'ambient_wonder'
-  | 'epic_rock';
+  | 'epic_rock'
+  | 'five_note_groove';
 
 export interface GeneratorOptions {
   archetype?: GeneratorArchetype;
   length?: 4 | 6 | 8 | 'song';
   keyRoot?: NoteName;
   mode?: 'major' | 'minor';
+  includeFiveNoteChords?: boolean;
 }
 
 interface HarmonicTemplate {
@@ -188,12 +190,39 @@ const HARMONIC_TEMPLATES: HarmonicTemplate[] = [
       { symbolInC: 'C', degree: 'I', role: 'Triumfalne uderzenie w tonikę' },
     ],
   },
+
+  // 7. Pięciodźwiękowy Groove & Neo-Soul / Fusion (maj9, m9, 6/9, 7b9, 7#9, 9sus4)
+  {
+    archetype: 'five_note_groove',
+    nameTemplates: [
+      'Aksamitny Neo-Soul z 5 Dźwiękami (maj9 / m9 / 6-9)',
+      'Modern Jazz Fusion & Nony (m9 / 7b9 / 9sus4)',
+      'Zmysłowy R&B Velvet Groove (Cmaj9 & Dm9)',
+      'Robert Glasper Chillout (maj9 / 7#9 / 6-9)',
+      'Gospel Harmonies & Soulful 11th (9sus4 / m9)',
+    ],
+    genre: 'Neo-Soul / Modern Jazz / 5-Dźwięki',
+    defaultMode: 'major',
+    descriptionTemplate:
+      'Gęsta, luksusowa faktura oparta na akordach 5-dźwiękowych: aksamitny maj9, głęboki m9, słoneczny pentachord 6/9, wzniosły gospelowy 9sus4 oraz pikantne dominanty alterowane (7b9, 7#9).',
+    stepsPool: [
+      { symbolInC: 'Cmaj9', degree: 'Imaj9', role: 'Aksamitna tonika z luksusową wielką noną' },
+      { symbolInC: 'Am9', degree: 'vi9', role: 'Ciepła paralela molowa z dodaną noną' },
+      { symbolInC: 'Dm9', degree: 'ii9', role: 'Aksamitny drugi stopień neo-soulowy' },
+      { symbolInC: 'G9sus4', degree: 'V9sus4', role: 'Gospelowe zawieszenie dominanty z noną' },
+      { symbolInC: 'Fmaj9', degree: 'IVmaj9', role: 'Promienne uniesienie subdominanty z noną' },
+      { symbolInC: 'A7b9', degree: 'VI7b9', role: 'Pikantna dominanta wtrącona z małą noną wiodąca do ii9' },
+      { symbolInC: 'C6/9', degree: 'I6/9', role: 'Słodki brazylijsko-soulowy pentachord z sekstą i noną' },
+      { symbolInC: 'G9', degree: 'V9', role: 'Dominanta z wielką noną rozwiązująca w Imaj9' },
+    ],
+  },
 ];
 
 /**
  * Format standard chord symbol from root and quality
  */
 export function formatChordSymbol(root: NoteName, quality: ChordQuality): string {
+  if (quality === 'power5') return `${root}5`;
   if (quality === 'minor') return `${root}m`;
   if (quality === 'dom7') return `${root}7`;
   if (quality === 'maj7') return `${root}maj7`;
@@ -208,6 +237,14 @@ export function formatChordSymbol(root: NoteName, quality: ChordQuality): string
   if (quality === 'sus4') return `${root}sus4`;
   if (quality === 'dom7sus4') return `${root}7sus4`;
   if (quality === 'add9') return `${root}add9`;
+  if (quality === 'dom9') return `${root}9`;
+  if (quality === 'maj9') return `${root}maj9`;
+  if (quality === 'min9') return `${root}m9`;
+  if (quality === 'sixNine') return `${root}6/9`;
+  if (quality === 'minSixNine') return `${root}m6/9`;
+  if (quality === 'dom7b9') return `${root}7b9`;
+  if (quality === 'dom7sharp9') return `${root}7#9`;
+  if (quality === 'nineSus4') return `${root}9sus4`;
   return root;
 }
 
@@ -446,7 +483,86 @@ const SONG_TEMPLATES: SongTemplate[] = [
       { symbolInC: 'Am6', degree: 'i6', role: 'Triumfalne zamknięcie formy pieśni' },
     ],
   },
+
+  // 7. Aksamitny Neo-Soul z 5-Dźwiękami (Robert Glasper, Erykah Badu)
+  {
+    archetype: 'five_note_groove',
+    title: 'Aksamitny Neo-Soul z 5 Dźwiękami (Zwrotka, Refren, Mostek)',
+    genre: 'Pełna Piosenka / Neo-Soul z 5-Dźwiękami',
+    defaultMode: 'major',
+    description:
+      'Trzyczęściowa luksusowa kompozycja neo-soulowa zbudowana na bogatych 5-dźwiękach. Zwrotka z marzycielskim maj9 i m9, refren z przestrzennym gospelowym 9sus4 oraz bridge ze zmysłowym Fm6/9 i dominantą alterowaną A7b9.',
+    verse: [
+      { symbolInC: 'Cmaj9', degree: 'Imaj9', role: 'Luksusowa tonika z wielką noną – intymny początek zwrotki' },
+      { symbolInC: 'Am9', degree: 'vi9', role: 'Ciepły, lo-fi oddech basu na paraleli molowej' },
+      { symbolInC: 'Dm9', degree: 'ii9', role: 'Aksamitna soulowa subdominanta z noną' },
+      { symbolInC: 'G9sus4', degree: 'V9sus4', role: 'Gospelowe zawieszenie dominantowe przed refrenem' },
+    ],
+    chorus: [
+      { symbolInC: 'Fmaj9', degree: 'IVmaj9', role: 'Eksplozja ciepła i uniesienie refrenu z noną' },
+      { symbolInC: 'Em9', degree: 'iii9', role: 'Gładki zjazd po stopniach gamy w dół z noną' },
+      { symbolInC: 'A7b9', degree: 'VI7b9', role: 'Pikantna dominanta wtrącona z małą noną' },
+      { symbolInC: 'Dm9', degree: 'ii9', role: 'Rozwiązanie dominanty w głęboki m9' },
+    ],
+    bridge: [
+      { symbolInC: 'C6/9', degree: 'I6/9', role: 'Kojący, słoneczny pentachord toniki (6 i 9)' },
+      { symbolInC: 'Fm6/9', degree: 'iv6/9', role: 'Zmysłowe brazylijskie zapożyczenie z 6 i 9' },
+      { symbolInC: 'Dm9', degree: 'ii9', role: 'Uspokojenie frazy przed finałowym akordem' },
+      { symbolInC: 'G9', degree: 'V9', role: 'Pełna dominanta nonowa wiodąca do toniki' },
+    ],
+  },
 ];
+
+/**
+ * Transforms chord steps to include rich 5-note voicings (maj9, m9, 6/9, m6/9, 7b9, 7#9, 9sus4)
+ */
+export function enrichWithFiveNoteChords<T extends { symbolInC: string; degree: string; role: string; section?: string }>(
+  steps: T[]
+): T[] {
+  return steps.map((s, idx) => {
+    const sym = s.symbolInC;
+    if (sym === 'C' || sym === 'Cmaj7') {
+      return {
+        ...s,
+        symbolInC: idx % 2 === 0 ? 'Cmaj9' : 'C6/9',
+        degree: idx % 2 === 0 ? 'Imaj9' : 'I6/9',
+        role: `${s.role} (5-dźwięk: ${idx % 2 === 0 ? 'maj9' : '6/9'})`,
+      };
+    }
+    if (sym === 'Am' || sym === 'Am7') {
+      return { ...s, symbolInC: 'Am9', degree: 'vi9', role: `${s.role} (5-dźwięk: m9)` };
+    }
+    if (sym === 'Dm' || sym === 'Dm7') {
+      return { ...s, symbolInC: 'Dm9', degree: 'ii9', role: `${s.role} (5-dźwięk: m9)` };
+    }
+    if (sym === 'F' || sym === 'Fmaj7') {
+      return { ...s, symbolInC: 'Fmaj9', degree: 'IVmaj9', role: `${s.role} (5-dźwięk: maj9)` };
+    }
+    if (sym === 'Em' || sym === 'Em7') {
+      return { ...s, symbolInC: 'Em9', degree: 'iii9', role: `${s.role} (5-dźwięk: m9)` };
+    }
+    if (sym === 'G' || sym === 'G7' || sym === 'Gsus4' || sym === 'G7sus4') {
+      return {
+        ...s,
+        symbolInC: idx % 2 === 0 ? 'G9sus4' : 'G9',
+        degree: idx % 2 === 0 ? 'V9sus4' : 'V9',
+        role: `${s.role} (5-dźwięk: ${idx % 2 === 0 ? '9sus4' : '9'})`,
+      };
+    }
+    if (sym === 'E7') {
+      return {
+        ...s,
+        symbolInC: idx % 2 === 0 ? 'E7b9' : 'E7#9',
+        degree: idx % 2 === 0 ? 'V7b9' : 'V7#9',
+        role: `${s.role} (5-dźwięk alterowany: ${idx % 2 === 0 ? '7b9' : '7#9'})`,
+      };
+    }
+    if (sym === 'Fm6') {
+      return { ...s, symbolInC: 'Fm6/9', degree: 'iv6/9', role: `${s.role} (5-dźwięk: m6/9)` };
+    }
+    return s;
+  });
+}
 
 /**
  * Transposes an already generated FamousProgression to a new target key,
@@ -513,13 +629,21 @@ export function transposeSmartProgression(
  */
 export function generateSmartProgression(options: GeneratorOptions = {}): FamousProgression {
   const targetLength = options.length || 4;
+  const want5Notes = Boolean(options.includeFiveNoteChords);
 
   // Handle Full Song Generation (Zwrotka, Refren, Bridge)
   if (targetLength === 'song') {
-    const songTemplates =
+    let songTemplates =
       options.archetype && options.archetype !== 'all'
         ? SONG_TEMPLATES.filter((t) => t.archetype === options.archetype)
         : SONG_TEMPLATES;
+
+    if (want5Notes && (!options.archetype || options.archetype === 'all')) {
+      const fiveNoteSongs = songTemplates.filter((t) => t.archetype === 'five_note_groove');
+      if (fiveNoteSongs.length > 0) {
+        songTemplates = fiveNoteSongs;
+      }
+    }
 
     const chosenSong =
       songTemplates[Math.floor(Math.random() * songTemplates.length)] || SONG_TEMPLATES[0];
@@ -528,21 +652,25 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
     const targetKeyRoot = options.keyRoot || (mode === 'minor' ? 'A' : 'C');
     const sourceBaseRoot: NoteName = chosenSong.defaultMode === 'minor' ? 'A' : 'C';
 
-    const verseSteps: FamousProgressionStep[] = chosenSong.verse.map((st) => ({
+    const rawVerse = want5Notes ? enrichWithFiveNoteChords(chosenSong.verse) : chosenSong.verse;
+    const rawChorus = want5Notes ? enrichWithFiveNoteChords(chosenSong.chorus) : chosenSong.chorus;
+    const rawBridge = want5Notes ? enrichWithFiveNoteChords(chosenSong.bridge) : chosenSong.bridge;
+
+    const verseSteps: FamousProgressionStep[] = rawVerse.map((st) => ({
       symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
       degree: st.degree,
       role: st.role,
       section: 'Zwrotka',
     }));
 
-    const chorusSteps: FamousProgressionStep[] = chosenSong.chorus.map((st) => ({
+    const chorusSteps: FamousProgressionStep[] = rawChorus.map((st) => ({
       symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
       degree: st.degree,
       role: st.role,
       section: 'Refren',
     }));
 
-    const bridgeSteps: FamousProgressionStep[] = chosenSong.bridge.map((st) => ({
+    const bridgeSteps: FamousProgressionStep[] = rawBridge.map((st) => ({
       symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
       degree: st.degree,
       role: st.role,
@@ -569,10 +697,20 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
   }
 
   // 1. Choose template for 4, 6, 8 chords
-  const availableTemplates =
+  let availableTemplates =
     options.archetype && options.archetype !== 'all'
       ? HARMONIC_TEMPLATES.filter((t) => t.archetype === options.archetype)
       : HARMONIC_TEMPLATES;
+
+  if (want5Notes && (!options.archetype || options.archetype === 'all')) {
+    const fiveNoteTemplates = availableTemplates.filter((t) => t.archetype === 'five_note_groove');
+    if (fiveNoteTemplates.length > 0) {
+      // 70% chance to pick the dedicated 5-note groove template, otherwise enrich any other template
+      if (Math.random() < 0.7) {
+        availableTemplates = fiveNoteTemplates;
+      }
+    }
+  }
 
   const chosenTemplate =
     availableTemplates[Math.floor(Math.random() * availableTemplates.length)] ||
@@ -604,6 +742,10 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
   } else {
     // 8 chords
     selectedStepsInC = pool.slice(0, 8);
+  }
+
+  if (want5Notes) {
+    selectedStepsInC = enrichWithFiveNoteChords(selectedStepsInC);
   }
 
   // 3. Transpose all steps to targetKeyRoot

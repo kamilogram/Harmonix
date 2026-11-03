@@ -42,7 +42,7 @@ export interface ChordQuizGameProps {
 }
 
 // Available filter categories for chord pools
-type ChordCategoryFilter = 'all' | 'triads' | 'sevenths' | 'suspended_add' | 'tension_sixths';
+type ChordCategoryFilter = 'all' | 'five_note' | 'triads_power' | 'sevenths' | 'suspended_add' | 'tension_sixths';
 
 interface QuizFilterOption {
   id: ChordCategoryFilter;
@@ -55,20 +55,28 @@ interface QuizFilterOption {
 const QUIZ_FILTER_OPTIONS: QuizFilterOption[] = [
   {
     id: 'all',
-    label: 'Wszystkie akordy (w tym rozbudowane)',
-    badge: '15 typów',
+    label: 'Wszystkie akordy (w tym 5-dźwięki)',
+    badge: '24 typy',
     qualities: [
-      'major', 'minor', 'dom7', 'maj7', 'min7', 'major6', 'minor6',
-      'diminished', 'dim7', 'm7b5', 'augmented', 'sus2', 'sus4', 'dom7sus4', 'add9'
+      'power5', 'major', 'minor', 'dom7', 'maj7', 'min7', 'major6', 'minor6',
+      'diminished', 'dim7', 'm7b5', 'augmented', 'sus2', 'sus4', 'dom7sus4', 'add9',
+      'dom9', 'maj9', 'min9', 'sixNine', 'minSixNine', 'dom7b9', 'dom7sharp9', 'nineSus4'
     ],
-    description: 'Pełny repertuar: trójdźwięki, 6, 7, sus2, sus4, aug, dim, m7b5, add9.',
+    description: 'Pełny repertuar: od surowego power chordu 5 i trójdźwięków po 5-klawiszowe jazzowe i funkowe harmonie (9, maj9, m9, 6/9, 7b9, 7#9, 9sus4).',
   },
   {
-    id: 'triads',
-    label: 'Podstawowe trójdźwięki',
-    badge: 'dur & moll',
-    qualities: ['major', 'minor'],
-    description: 'Klasyczne akordy durowe i molowe (jasne vs melancholijne).',
+    id: 'five_note',
+    label: 'Akordy 5-dźwiękowe (5 klawiszy)',
+    badge: '9, maj9, 6/9...',
+    qualities: ['dom9', 'maj9', 'min9', 'sixNine', 'minSixNine', 'dom7b9', 'dom7sharp9', 'nineSus4'],
+    description: 'Bogate, wielodźwiękowe akordy jazzowe, neo-soul i fusion wymagające aż 5 klawiszy.',
+  },
+  {
+    id: 'triads_power',
+    label: 'Trójdźwięki & Power chord 5',
+    badge: '5, dur & moll',
+    qualities: ['power5', 'major', 'minor'],
+    description: 'Podstawowe trójdźwięki durowe i molowe oraz rockowy dwudźwięk 5 (pryma + kwinta).',
   },
   {
     id: 'sevenths',
@@ -79,17 +87,17 @@ const QUIZ_FILTER_OPTIONS: QuizFilterOption[] = [
   },
   {
     id: 'suspended_add',
-    label: 'Zawieszone & Dodana nona',
-    badge: 'sus2, sus4, 7sus4, add9',
-    qualities: ['sus2', 'sus4', 'dom7sus4', 'add9'],
-    description: 'Nowoczesne, otwarte brzmienia popowe, filmowe i balladowe.',
+    label: 'Zawieszone & Nony',
+    badge: 'sus2, sus4, 9sus4, add9',
+    qualities: ['sus2', 'sus4', 'dom7sus4', 'nineSus4', 'add9'],
+    description: 'Przestrzenne, otwarte brzmienia popowe, filmowe i gospelowe.',
   },
   {
     id: 'tension_sixths',
-    label: 'Szóstki & Akordy napięcia',
-    badge: '6, m6, dim, dim7, aug',
-    qualities: ['major6', 'minor6', 'diminished', 'dim7', 'augmented'],
-    description: 'Filmowe, jazzowe i suspensowe harmonie retro.',
+    label: 'Szóstki & Napięcia',
+    badge: '6, m6, dim, dim7, aug, 7#9',
+    qualities: ['major6', 'minor6', 'diminished', 'dim7', 'augmented', 'dom7sharp9'],
+    description: 'Filmowe, retro i suspensowe harmonie oraz psychodeliczny blues.',
   },
 ];
 
@@ -136,7 +144,7 @@ const BASE_QUALITY_OPTIONS: BaseQualityOption[] = [
 
 // Definition of Extension / Modifier (Row 3)
 interface ExtensionOption {
-  id: string; // 'brak', '6', '7', '7b5', 'sus2', 'sus4', '7sus4', 'add9'
+  id: string; // 'brak', '5', '6', '7', '7b5', '9', '6/9', '7b9', '7#9', 'sus2', 'sus4', '7sus4', '9sus4', 'add9'
   label: string;
   sub: string;
   desc: string;
@@ -144,12 +152,18 @@ interface ExtensionOption {
 
 const EXTENSION_OPTIONS: ExtensionOption[] = [
   { id: 'brak', label: '— (brak)', sub: 'trójdźwięk', desc: 'Trójdźwięk bez dodatków' },
+  { id: '5', label: '5', sub: 'kwinta (power)', desc: 'Akord kwintowy (2 dźwięki: pryma + kwinta)' },
   { id: '6', label: '6', sub: 'seksta', desc: 'Dodana seksta wielka' },
   { id: '7', label: '7', sub: 'septyma', desc: 'Septyma mała lub zmniejszona' },
   { id: '7b5', label: '7b5', sub: 'półzmniejszony', desc: 'Półzmniejszony (m7b5)' },
+  { id: '9', label: '9', sub: 'nona (5 kl.)', desc: 'Akord nonowy (9 / m9 / maj9) - 5 dźwięków' },
+  { id: '6/9', label: '6/9', sub: 'seksta + nona (5 kl.)', desc: 'Akord sekstowo-nonowy (6/9 / m6/9) - 5 dźwięków' },
+  { id: '7b9', label: '7b9', sub: 'septyma + b9 (5 kl.)', desc: 'Dominanta z małą noną (7b9) - 5 dźwięków' },
+  { id: '7#9', label: '7#9', sub: 'Hendrix (#9) (5 kl.)', desc: 'Kultowy akord Hendrixa (7#9) - 5 dźwięków' },
   { id: 'sus2', label: 'sus2', sub: 'zawieszona 2', desc: 'Zawieszona sekunda (zamiast tercji)' },
   { id: 'sus4', label: 'sus4', sub: 'zawieszona 4', desc: 'Zawieszona kwarta (zamiast tercji)' },
   { id: '7sus4', label: '7sus4', sub: 'septyma + 4', desc: 'Septyma dominantowa z zawieszoną kwartą' },
+  { id: '9sus4', label: '9sus4', sub: 'nona + 4 (5 kl.)', desc: 'Zawieszona kwarta i dodana nona (5 dźwięków)' },
   { id: 'add9', label: 'add9', sub: 'dodana nona', desc: 'Trójdźwięk z dodaną noną wielką' },
 ];
 
@@ -178,10 +192,11 @@ function findAllValidChordsForNotes(midiNotes: number[]): ValidChordInterpretati
   const pitchClasses = Array.from(new Set(midiNotes.map((m) => ((m % 12) + 12) % 12))).sort((a, b) => a - b);
   const validChords: ValidChordInterpretation[] = [];
 
-  // All 15 supported qualities
+  // All 24 supported qualities
   const allQualities: ChordQuality[] = [
-    'major', 'minor', 'dom7', 'maj7', 'min7', 'major6', 'minor6',
-    'diminished', 'dim7', 'm7b5', 'augmented', 'sus2', 'sus4', 'dom7sus4', 'add9'
+    'power5', 'major', 'minor', 'dom7', 'maj7', 'min7', 'major6', 'minor6',
+    'diminished', 'dim7', 'm7b5', 'augmented', 'sus2', 'sus4', 'dom7sus4', 'add9',
+    'dom9', 'maj9', 'min9', 'sixNine', 'minSixNine', 'dom7b9', 'dom7sharp9', 'nineSus4'
   ];
 
   for (let r = 0; r < 12; r++) {
@@ -189,9 +204,11 @@ function findAllValidChordsForNotes(midiNotes: number[]): ValidChordInterpretati
 
     for (const q of allQualities) {
       const intervals = CHORD_INTERVALS[q];
-      if (intervals.length !== pitchClasses.length) continue;
+      // Normalize intervals modulo 12 for pitch-class comparison
+      const normalizedIntervals = Array.from(new Set(intervals.map((iv) => iv % 12))).sort((a, b) => a - b);
+      if (normalizedIntervals.length !== pitchClasses.length) continue;
 
-      const targetPitches = intervals.map((iv) => (r + iv) % 12).sort((a, b) => a - b);
+      const targetPitches = normalizedIntervals.map((iv) => (r + iv) % 12).sort((a, b) => a - b);
 
       // Check if targetPitches identical to pitchClasses
       let isMatch = true;
@@ -207,7 +224,8 @@ function findAllValidChordsForNotes(midiNotes: number[]): ValidChordInterpretati
         const matchingKeys: { base: string; ext: string }[] = [];
 
         // Map quality to acceptable (base, ext) pairs
-        if (q === 'major') matchingKeys.push({ base: '', ext: 'brak' });
+        if (q === 'power5') matchingKeys.push({ base: '', ext: '5' });
+        else if (q === 'major') matchingKeys.push({ base: '', ext: 'brak' });
         else if (q === 'minor') matchingKeys.push({ base: 'm', ext: 'brak' });
         else if (q === 'dom7') matchingKeys.push({ base: '', ext: '7' });
         else if (q === 'maj7') {
@@ -226,6 +244,14 @@ function findAllValidChordsForNotes(midiNotes: number[]): ValidChordInterpretati
         else if (q === 'sus4') matchingKeys.push({ base: '', ext: 'sus4' });
         else if (q === 'dom7sus4') matchingKeys.push({ base: '', ext: '7sus4' });
         else if (q === 'add9') matchingKeys.push({ base: '', ext: 'add9' });
+        else if (q === 'dom9') matchingKeys.push({ base: '', ext: '9' });
+        else if (q === 'maj9') matchingKeys.push({ base: 'maj', ext: '9' });
+        else if (q === 'min9') matchingKeys.push({ base: 'm', ext: '9' });
+        else if (q === 'sixNine') matchingKeys.push({ base: '', ext: '6/9' });
+        else if (q === 'minSixNine') matchingKeys.push({ base: 'm', ext: '6/9' });
+        else if (q === 'dom7b9') matchingKeys.push({ base: '', ext: '7b9' });
+        else if (q === 'dom7sharp9') matchingKeys.push({ base: '', ext: '7#9' });
+        else if (q === 'nineSus4') matchingKeys.push({ base: '', ext: '9sus4' });
 
         validChords.push({
           rootIndex: r,
@@ -264,7 +290,22 @@ function formatComposedChord(
 
   let quality: ChordQuality | null = null;
 
-  if (base === 'maj') {
+  if (ext === '5') {
+    quality = 'power5';
+  } else if (ext === '9') {
+    if (base === 'maj') quality = 'maj9';
+    else if (base === 'm') quality = 'min9';
+    else quality = 'dom9';
+  } else if (ext === '6/9') {
+    if (base === 'm') quality = 'minSixNine';
+    else quality = 'sixNine';
+  } else if (ext === '7b9') {
+    quality = 'dom7b9';
+  } else if (ext === '7#9') {
+    quality = 'dom7sharp9';
+  } else if (ext === '9sus4') {
+    quality = 'nineSus4';
+  } else if (base === 'maj') {
     if (ext === '7' || ext === 'brak' || ext === '') quality = 'maj7';
   } else if (base === 'dim') {
     if (ext === 'brak' || ext === '') quality = 'diminished';
@@ -400,12 +441,17 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
     }
 
     // Keep comfortably in 37-key piano range (48 to 84)
-    const minMidi = Math.min(...midiNotes);
-    const maxMidi = Math.max(...midiNotes);
-    if (maxMidi > 84) {
+    let minMidi = Math.min(...midiNotes);
+    let maxMidi = Math.max(...midiNotes);
+    while (maxMidi > 84) {
       midiNotes = midiNotes.map((m) => m - 12);
-    } else if (minMidi < 48) {
+      maxMidi = Math.max(...midiNotes);
+      minMidi = Math.min(...midiNotes);
+    }
+    while (minMidi < 48) {
       midiNotes = midiNotes.map((m) => m + 12);
+      minMidi = Math.min(...midiNotes);
+      maxMidi = Math.max(...midiNotes);
     }
 
     // Calculate ALL valid chords for this pitch class set
@@ -499,14 +545,29 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
     if (isAnswered) return;
     setSelectedExtId(extId);
 
-    // If user selects sus2, sus4, 7sus4, add9, base naturally connects to '' (major base)
-    if (extId === 'sus2' || extId === 'sus4' || extId === '7sus4' || extId === 'add9') {
+    // Specific modifier base couplings
+    if (
+      extId === '5' ||
+      extId === '7b9' ||
+      extId === '7#9' ||
+      extId === '9sus4' ||
+      extId === 'sus2' ||
+      extId === 'sus4' ||
+      extId === '7sus4' ||
+      extId === 'add9'
+    ) {
       if (selectedBaseId !== '') {
         setSelectedBaseId('');
       }
-    }
-    // If user selects 7b5, it connects with 'm' (half-diminished) or 'dim'
-    if (extId === '7b5' && selectedBaseId !== 'm' && selectedBaseId !== 'dim') {
+    } else if (extId === '6/9') {
+      if (selectedBaseId !== '' && selectedBaseId !== 'm') {
+        setSelectedBaseId('');
+      }
+    } else if (extId === '9') {
+      if (selectedBaseId === 'dim' || selectedBaseId === 'aug') {
+        setSelectedBaseId('');
+      }
+    } else if (extId === '7b5' && selectedBaseId !== 'm' && selectedBaseId !== 'dim') {
       setSelectedBaseId('m');
     }
   };

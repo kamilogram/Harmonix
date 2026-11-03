@@ -17,6 +17,8 @@ import {
   createChordDefinition,
   getNoteLabel,
   NOTE_NAMES,
+  hasFiveNoteChords,
+  getFiveNoteChordsInProgression,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormula } from './ProgressionLibrary';
@@ -55,19 +57,27 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
 }) => {
   const [archetype, setArchetype] = useState<GeneratorArchetype>('all');
   const [length, setLength] = useState<4 | 6 | 8 | 'song'>(4);
+  const [includeFiveNoteChords, setIncludeFiveNoteChords] = useState<boolean>(false);
   const [generatedProg, setGeneratedProg] = useState<FamousProgression | null>(null);
   const [isPlaying, setIsPlaying] = useState(false);
   const [isSaved, setIsSaved] = useState(false);
   const [showKeyPicker, setShowKeyPicker] = useState(false);
 
   // Generate initial progression or on button click
-  const handleGenerate = (customLength?: 4 | 6 | 8 | 'song', customArchetype?: GeneratorArchetype, customKeyRoot?: NoteName) => {
+  const handleGenerate = (
+    customLength?: 4 | 6 | 8 | 'song',
+    customArchetype?: GeneratorArchetype,
+    customKeyRoot?: NoteName,
+    customInclude5Notes?: boolean
+  ) => {
     setIsSaved(false);
+    const with5 = customInclude5Notes !== undefined ? customInclude5Notes : includeFiveNoteChords;
     const newProg = generateSmartProgression({
       archetype: customArchetype || archetype,
       length: customLength || length,
       keyRoot: customKeyRoot || currentKeyRoot,
       mode: currentMode,
+      includeFiveNoteChords: with5,
     });
     setGeneratedProg(newProg);
   };
@@ -95,6 +105,7 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
         length,
         keyRoot: currentKeyRoot,
         mode: currentMode,
+        includeFiveNoteChords,
       });
       setGeneratedProg(newProg);
     }
@@ -187,6 +198,7 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
 
   const archetypesList: { id: GeneratorArchetype; label: string; desc: string; badge: string }[] = [
     { id: 'all', label: '🎲 Zaskocz mnie (Pełna paleta)', desc: 'Inteligentna eksploracja wszystkich kolorów harmonicznych', badge: 'Wszystkie' },
+    { id: 'five_note_groove', label: '✨ 5-Dźwięki & Neo-Soul', desc: 'Luksusowe, gęste akordy 5-dźwiękowe: maj9, m9, 6/9, 7b9, 7#9, 9sus4', badge: 'maj9, m9, 6/9' },
     { id: 'modern_pop', label: '🌟 Pop & Hymn (add9, sus)', desc: 'Stadionowy, świetlisty styl Coldplay, U2, The Script', badge: 'add9, sus4' },
     { id: 'film_noir', label: '🕵️ Film Noir & Suspense', desc: 'Mroczny kryminał, motyw Bonda, seksta molowa m6 i dim7', badge: 'm6, dim7, aug' },
     { id: 'neo_soul', label: '☕ Neo-Soul & Kawiarnia', desc: 'Aksamitne ciepło wielkich septym, nony add9 i zapożyczenie iv6', badge: 'maj7, iv6' },
@@ -209,7 +221,7 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                 Generator Progresji w Locie
               </h3>
               <span className="text-[10px] font-black uppercase tracking-wider px-2 py-0.5 rounded-full bg-amber-400/20 text-amber-300 border border-amber-400/40">
-                sus2 · sus4 · 6 · m6 · aug · dim · add9
+                5-dźwięki (9, 6/9, 7b9) · sus · 6 · aug · dim
               </span>
             </div>
             <p className="text-xs text-slate-400 mt-0.5">
@@ -313,8 +325,8 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
           </div>
         </div>
 
-        {/* Length selector & Generate Button */}
-        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pt-1">
+        {/* Length selector, 5-Note Chords Toggle & Generate Button */}
+        <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 pt-1">
           <div className="flex items-center gap-2 flex-wrap">
             <span className="text-xs font-semibold text-slate-400 flex items-center gap-1">
               <Layers className="w-3.5 h-3.5 text-amber-400" />
@@ -327,7 +339,7 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                   type="button"
                   onClick={() => {
                     setLength(len);
-                    handleGenerate(len, archetype);
+                    handleGenerate(len, archetype, currentKeyRoot, includeFiveNoteChords);
                   }}
                   className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer ${
                     length === len
@@ -342,7 +354,7 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                 type="button"
                 onClick={() => {
                   setLength('song');
-                  handleGenerate('song', archetype);
+                  handleGenerate('song', archetype, currentKeyRoot, includeFiveNoteChords);
                 }}
                 className={`px-3 py-1 rounded-lg text-xs font-bold transition-all cursor-pointer flex items-center gap-1 ${
                   length === 'song'
@@ -355,6 +367,32 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                 <span>🎵 Cała piosenka (Zwrotka, Refren, Bridge)</span>
               </button>
             </div>
+
+            {/* 5-Note Chords Toggle Button */}
+            <button
+              type="button"
+              onClick={() => {
+                const nextVal = !includeFiveNoteChords;
+                setIncludeFiveNoteChords(nextVal);
+                handleGenerate(length, archetype, currentKeyRoot, nextVal);
+              }}
+              className={`px-3 py-1.5 rounded-xl text-xs font-bold transition-all cursor-pointer flex items-center gap-1.5 border shadow-sm ${
+                includeFiveNoteChords
+                  ? 'bg-gradient-to-r from-amber-400 to-amber-300 text-slate-950 border-amber-300 ring-2 ring-amber-400/30'
+                  : 'bg-slate-950 hover:bg-slate-900 text-slate-300 border-slate-800 hover:border-slate-700'
+              }`}
+              title="Włącz generowanie bogatych akordów 5-dźwiękowych (maj9, m9, 6/9, m6/9, 7b9, 7#9, 9sus4)"
+            >
+              <Sparkles className={`w-3.5 h-3.5 ${includeFiveNoteChords ? 'fill-slate-950 text-slate-950' : 'text-amber-400'}`} />
+              <span>Akordy 5-dźwiękowe</span>
+              <span
+                className={`text-[9px] font-black uppercase px-1.5 py-0.5 rounded ${
+                  includeFiveNoteChords ? 'bg-slate-950 text-amber-300' : 'bg-slate-900 text-slate-400'
+                }`}
+              >
+                {includeFiveNoteChords ? 'WŁĄCZONE' : 'OPCJA'}
+              </span>
+            </button>
           </div>
 
           <button
@@ -383,6 +421,12 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
                 <span className="text-[10px] text-emerald-300 bg-emerald-950/60 border border-emerald-500/30 px-2 py-0.5 rounded-md font-bold">
                   ✓ Spójność harmoniczna 100%
                 </span>
+                {hasFiveNoteChords(generatedProg) && (
+                  <span className="text-[10px] text-amber-300 bg-amber-400/15 border border-amber-400/40 px-2 py-0.5 rounded-md font-bold flex items-center gap-1">
+                    <Sparkles className="w-3 h-3 fill-current" />
+                    <span>Zawiera 5-dźwięki ({getFiveNoteChordsInProgression(generatedProg).join(', ')})</span>
+                  </span>
+                )}
               </div>
               <h4 className="text-base sm:text-lg font-bold text-white mt-1">
                 {generatedProg.name}
