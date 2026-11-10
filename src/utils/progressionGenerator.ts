@@ -1,5 +1,13 @@
 import { NoteName, FamousProgression, FamousProgressionStep, ChordQuality } from '../types/music';
-import { NOTE_NAMES, getNoteLabel, parseChordSymbol, createChordDefinition } from './musicTheory';
+import {
+  NOTE_NAMES,
+  getNoteLabel,
+  parseChordSymbol,
+  createChordDefinition,
+  isTonicDegree,
+  isTonicDegreeMinor,
+  getExpectedChordForDegree,
+} from './musicTheory';
 
 export type GeneratorArchetype =
   | 'all'
@@ -274,25 +282,11 @@ export function extractKeyFromProgression(prog: FamousProgression): { root: Note
   const isMinor = prog.key.toLowerCase().includes('moll') || prog.key.toLowerCase().includes('minor');
 
   // Check if any step declares the tonic degree (I or i)
-  const tonicStep = prog.steps?.find((st) => {
-    const d = st.degree?.trim() || '';
-    return (
-      d === 'I' ||
-      d === 'i' ||
-      d.startsWith('I ') ||
-      d.startsWith('i ') ||
-      d.startsWith('I(') ||
-      d.startsWith('i(') ||
-      d.startsWith('Imaj') ||
-      d.startsWith('I7') ||
-      d.startsWith('i7')
-    ) && !d.startsWith('IV') && !d.startsWith('iv');
-  });
+  const tonicStep = prog.steps?.find((st) => isTonicDegree(st.degree));
 
   if (tonicStep) {
     const parsed = parseChordSymbol(tonicStep.symbol);
-    const d = tonicStep.degree.trim();
-    const mode = isMinor || d === 'i' || d.startsWith('i') || parsed.quality === 'minor' || parsed.quality === 'min7' ? 'minor' : 'major';
+    const mode = isMinor || isTonicDegreeMinor(tonicStep.degree) || ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(parsed.quality) ? 'minor' : 'major';
     return { root: parsed.root, mode };
   }
 
@@ -589,7 +583,12 @@ export function transposeSmartProgression(
     const parsed = parseChordSymbol(step.symbol);
     const oldChordIdx = NOTE_NAMES.indexOf(parsed.root);
     const newChordRoot = NOTE_NAMES[(oldChordIdx + semitonesDelta) % 12];
-    const newSymbol = formatChordSymbol(newChordRoot, parsed.quality);
+    let newSymbol = formatChordSymbol(newChordRoot, parsed.quality);
+
+    const expected = getExpectedChordForDegree(step.degree, targetKeyRoot, isMinor ? 'minor' : 'major');
+    if (expected) {
+      newSymbol = formatChordSymbol(expected.root, expected.quality);
+    }
 
     return {
       ...step,
@@ -656,26 +655,41 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
     const rawChorus = want5Notes ? enrichWithFiveNoteChords(chosenSong.chorus) : chosenSong.chorus;
     const rawBridge = want5Notes ? enrichWithFiveNoteChords(chosenSong.bridge) : chosenSong.bridge;
 
-    const verseSteps: FamousProgressionStep[] = rawVerse.map((st) => ({
-      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
-      degree: st.degree,
-      role: st.role,
-      section: 'Zwrotka',
-    }));
+    const verseSteps: FamousProgressionStep[] = rawVerse.map((st) => {
+      let symbol = transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot);
+      const expected = getExpectedChordForDegree(st.degree, targetKeyRoot, mode);
+      if (expected) symbol = formatChordSymbol(expected.root, expected.quality);
+      return {
+        symbol,
+        degree: st.degree,
+        role: st.role,
+        section: 'Zwrotka',
+      };
+    });
 
-    const chorusSteps: FamousProgressionStep[] = rawChorus.map((st) => ({
-      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
-      degree: st.degree,
-      role: st.role,
-      section: 'Refren',
-    }));
+    const chorusSteps: FamousProgressionStep[] = rawChorus.map((st) => {
+      let symbol = transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot);
+      const expected = getExpectedChordForDegree(st.degree, targetKeyRoot, mode);
+      if (expected) symbol = formatChordSymbol(expected.root, expected.quality);
+      return {
+        symbol,
+        degree: st.degree,
+        role: st.role,
+        section: 'Refren',
+      };
+    });
 
-    const bridgeSteps: FamousProgressionStep[] = rawBridge.map((st) => ({
-      symbol: transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot),
-      degree: st.degree,
-      role: st.role,
-      section: 'Bridge',
-    }));
+    const bridgeSteps: FamousProgressionStep[] = rawBridge.map((st) => {
+      let symbol = transposeSymbol(st.symbolInC, targetKeyRoot, sourceBaseRoot);
+      const expected = getExpectedChordForDegree(st.degree, targetKeyRoot, mode);
+      if (expected) symbol = formatChordSymbol(expected.root, expected.quality);
+      return {
+        symbol,
+        degree: st.degree,
+        role: st.role,
+        section: 'Bridge',
+      };
+    });
 
     const allSteps: FamousProgressionStep[] = [...verseSteps, ...chorusSteps, ...bridgeSteps];
 
@@ -749,10 +763,14 @@ export function generateSmartProgression(options: GeneratorOptions = {}): Famous
   }
 
   // 3. Transpose all steps to targetKeyRoot
-  const sourceBaseRoot: NoteName = mode === 'minor' ? 'A' : 'C';
+  const sourceBaseRoot: NoteName = chosenTemplate.defaultMode === 'minor' ? 'A' : 'C';
 
   const steps: FamousProgressionStep[] = selectedStepsInC.map((step) => {
-    const transposedSymbol = transposeSymbol(step.symbolInC, targetKeyRoot, sourceBaseRoot);
+    let transposedSymbol = transposeSymbol(step.symbolInC, targetKeyRoot, sourceBaseRoot);
+    const expected = getExpectedChordForDegree(step.degree, targetKeyRoot, mode);
+    if (expected) {
+      transposedSymbol = formatChordSymbol(expected.root, expected.quality);
+    }
     return {
       symbol: transposedSymbol,
       degree: step.degree,

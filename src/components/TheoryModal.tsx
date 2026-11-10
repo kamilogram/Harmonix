@@ -8,7 +8,7 @@ interface TheoryModalProps {
 }
 
 export const TheoryModal: React.FC<TheoryModalProps> = ({ isOpen, onClose }) => {
-  const [activeTab, setActiveTab] = useState<'basics' | 'functions' | 'voiceleading' | 'emotions' | 'extensions' | 'fivenote'>('basics');
+  const [activeTab, setActiveTab] = useState<'basics' | 'functions' | 'voiceleading' | 'emotions' | 'extensions' | 'fivenote' | 'guitar'>('basics');
 
   if (!isOpen) return null;
 
@@ -23,10 +23,10 @@ export const TheoryModal: React.FC<TheoryModalProps> = ({ isOpen, onClose }) => 
             </div>
             <div>
               <h3 className="text-lg font-bold text-white">
-                Przewodnik po Teorii Muzyki i Harmonii
+                Przewodnik po Teorii Muzyki, Pianinie i Gitarze
               </h3>
               <p className="text-xs text-slate-400">
-                Praktyczne zasady tworzenia zachwycających progresji na pianinie
+                Praktyczne zasady tworzenia progresji na fortepianie i rączce gitary
               </p>
             </div>
           </div>
@@ -108,6 +108,17 @@ export const TheoryModal: React.FC<TheoryModalProps> = ({ isOpen, onClose }) => 
           >
             <Sparkles className="w-3.5 h-3.5" />
             <span>6. Akordy 5-Dźwiękowe (9, 6/9, 5)</span>
+          </button>
+          <button
+            type="button"
+            onClick={() => setActiveTab('guitar')}
+            className={`px-3.5 py-1.5 text-xs font-semibold rounded-lg transition-colors cursor-pointer shrink-0 flex items-center gap-1.5 ${
+              activeTab === 'guitar'
+                ? 'bg-amber-400 text-slate-950 shadow-sm font-bold'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/50'
+            }`}
+          >
+            <span>🎸 7. Gryf & Chwyty Gitarowe</span>
           </button>
         </div>
 
@@ -837,6 +848,189 @@ export const TheoryModal: React.FC<TheoryModalProps> = ({ isOpen, onClose }) => 
                   </li>
                   <li>
                     <strong className="text-white">Pominięcie kwinty (Rootless/Omission):</strong> Kwinta czysta (G) jest najmniej istotnym harmonicznie dźwiękiem. W zespole z basistą pianiści grają często samą tercję, septymę i nonę (3 - 7 - 9)!
+                  </li>
+                </ul>
+              </div>
+            </div>
+          )}
+
+          {activeTab === 'guitar' && (
+            <div className="space-y-5">
+              {/* Introduction */}
+              <div className="p-4 rounded-xl bg-gradient-to-br from-amber-400/15 via-slate-950 to-slate-950 border border-amber-400/30">
+                <div className="flex items-center gap-2 mb-1.5 text-amber-300 font-bold">
+                  <span className="text-lg">🎸</span>
+                  <span>Rączka Gitary (Gryf) i Chwyty – Kompendium Lewej Ręki</span>
+                </div>
+                <p className="text-xs text-slate-300 leading-relaxed">
+                  Gitara w przeciwieństwie do pianina (gdzie klawisze ułożone są w prostej linii) posiada siatkę dwuwymiarową:
+                  <strong className="text-white"> 6 strun</strong> rozciągniętych wzdłuż <strong className="text-white">progów</strong>.
+                  Każdy próg w górę podwyższa dźwięk o <strong className="text-amber-400">dokładnie 1 półton</strong>.
+                  Lewa ręka odpowiada za dociskanie strun do progów, a prawa za uderzenie (strumming) lub szarpanie (picking).
+                </p>
+              </div>
+
+              {/* 1. Struny i strój */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span className="text-amber-400">1.</span>
+                  <span>Standardowy strój 6 strun (od basu do wiolinu)</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-6 gap-2 text-xs text-center">
+                  <div className="p-2 rounded-lg bg-slate-900 border border-amber-500/30">
+                    <span className="font-mono font-black text-amber-400 text-sm block">E (6)</span>
+                    <span className="text-[11px] text-slate-400">E2 basowa (gruba)</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="font-mono font-black text-white text-sm block">A (5)</span>
+                    <span className="text-[11px] text-slate-400">A2</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="font-mono font-black text-white text-sm block">D (4)</span>
+                    <span className="text-[11px] text-slate-400">D3</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="font-mono font-black text-white text-sm block">G (3)</span>
+                    <span className="text-[11px] text-slate-400">G3</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900 border border-slate-800">
+                    <span className="font-mono font-black text-white text-sm block">B/H (2)</span>
+                    <span className="text-[11px] text-slate-400">B3 (H3)</span>
+                  </div>
+                  <div className="p-2 rounded-lg bg-slate-900 border border-sky-400/30">
+                    <span className="font-mono font-black text-sky-400 text-sm block">e (1)</span>
+                    <span className="text-[11px] text-slate-400">E4 wiolinowa (cienka)</span>
+                  </div>
+                </div>
+                <p className="text-[11px] text-slate-400 italic">
+                  Mnemotechnika ułatwiająca zapamiętanie: <strong>E</strong>dek <strong>A</strong>ni <strong>D</strong>ał <strong>G</strong>ryza <strong>B</strong>ułki <strong>E</strong>skimoskiej.
+                </p>
+              </div>
+
+              {/* 2. Palcowanie lewej ręki */}
+              <div className="p-4 rounded-xl bg-slate-950/80 border border-slate-800 space-y-2.5">
+                <h4 className="text-sm font-bold text-white flex items-center gap-1.5">
+                  <span className="text-amber-400">2.</span>
+                  <span>Oznaczenia palców lewej ręki (1 – 4)</span>
+                </h4>
+                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2 text-xs">
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-amber-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">1</span>
+                    <div>
+                      <p className="font-bold text-white">Wskazujący</p>
+                      <p className="text-[10px] text-slate-400">Często kładziony w poprzek (barre)</p>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-sky-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">2</span>
+                    <div>
+                      <p className="font-bold text-white">Środkowy</p>
+                      <p className="text-[10px] text-slate-400">Najdłuższy, baza chwytów C, G, Am</p>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-emerald-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">3</span>
+                    <div>
+                      <p className="font-bold text-white">Serdeczny</p>
+                      <p className="text-[10px] text-slate-400">Niezbędny przy prymach basowych</p>
+                    </div>
+                  </div>
+                  <div className="p-2.5 rounded-lg bg-slate-900 border border-slate-800 flex items-center gap-2">
+                    <span className="w-6 h-6 rounded-full bg-purple-400 text-slate-950 font-black text-xs flex items-center justify-center shrink-0">4</span>
+                    <div>
+                      <p className="font-bold text-white">Mały palec</p>
+                      <p className="text-[10px] text-slate-400">Septymy, nony i wysokie nuty</p>
+                    </div>
+                  </div>
+                </div>
+                <div className="p-2.5 rounded-lg bg-amber-400/10 border border-amber-400/20 text-xs text-amber-200">
+                  <strong className="text-white">Kciuk (T – Thumb):</strong> Kciuk NIE dociska progów od góry (oprócz rzadkich technik Hendrixa). Powinien spoczywać z tyłu gryfu naprzeciwko palca środkowego, dając podparcie jak imadło.
+                </div>
+              </div>
+
+              {/* 3. Podstawowe chwyty otwarte (Open Chords) */}
+              <div className="p-4 rounded-xl bg-slate-950/70 border border-slate-800 space-y-3">
+                <span className="font-bold text-emerald-400 text-xs uppercase tracking-wide block">
+                  3. Najpopularniejsze Chwyty Otwarte (Cowboy Chords)
+                </span>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2.5 text-xs">
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between font-bold text-white mb-1">
+                        <span className="text-sm">C-dur (C)</span>
+                        <button
+                          type="button"
+                          onClick={() => sound.playGuitarStrum([48, 52, 55, 60, 64], 2.2, 'down', 22)}
+                          className="text-amber-400 hover:underline cursor-pointer font-bold"
+                        >
+                          Zagraj C 🎸
+                        </button>
+                      </div>
+                      <p className="text-amber-300/90 font-mono text-[11px]">x - 3 - 2 - 0 - 1 - 0</p>
+                      <p className="text-slate-400 mt-1">Palce: P3 (A), P2 (D), P1 (B)</p>
+                    </div>
+                    <p className="text-slate-300 mt-2 border-t border-slate-800/80 pt-1.5">
+                      Podstawa muzyki akustycznej i folkowej. Struna E basowa jest wyciszona (✕).
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between font-bold text-white mb-1">
+                        <span className="text-sm">G-dur (G)</span>
+                        <button
+                          type="button"
+                          onClick={() => sound.playGuitarStrum([43, 47, 50, 55, 59, 67], 2.2, 'down', 22)}
+                          className="text-amber-400 hover:underline cursor-pointer font-bold"
+                        >
+                          Zagraj G 🎸
+                        </button>
+                      </div>
+                      <p className="text-emerald-300/90 font-mono text-[11px]">3 - 2 - 0 - 0 - 0 - 3</p>
+                      <p className="text-slate-400 mt-1">Palce: P3 (E6), P2 (A), P4 (E1)</p>
+                    </div>
+                    <p className="text-slate-300 mt-2 border-t border-slate-800/80 pt-1.5">
+                      Pełne, dźwięczne brzmienie wszystkich 6 strun. Najważniejsza dominanta w tonacji C.
+                    </p>
+                  </div>
+
+                  <div className="p-3 rounded-lg bg-slate-900 border border-slate-800 flex flex-col justify-between">
+                    <div>
+                      <div className="flex items-center justify-between font-bold text-white mb-1">
+                        <span className="text-sm">A-moll (Am)</span>
+                        <button
+                          type="button"
+                          onClick={() => sound.playGuitarStrum([45, 52, 57, 60, 64], 2.2, 'down', 22)}
+                          className="text-amber-400 hover:underline cursor-pointer font-bold"
+                        >
+                          Zagraj Am 🎸
+                        </button>
+                      </div>
+                      <p className="text-sky-300/90 font-mono text-[11px]">x - 0 - 2 - 2 - 1 - 0</p>
+                      <p className="text-slate-400 mt-1">Palce: P2 (D), P3 (G), P1 (B)</p>
+                    </div>
+                    <p className="text-slate-300 mt-2 border-t border-slate-800/80 pt-1.5">
+                      Identyczny kształt palców jak E-dur, przesunięty o 1 strunę w dół. Melancholijny i łagodny.
+                    </p>
+                  </div>
+                </div>
+              </div>
+
+              {/* 4. Ergonomia trzymania i docisku */}
+              <div className="p-4 rounded-xl bg-slate-900 border border-slate-800 space-y-2 text-xs">
+                <h5 className="font-bold text-white flex items-center gap-1.5">
+                  <Sliders className="w-3.5 h-3.5 text-amber-400" />
+                  <span>3 złote zasady ergonomii lewej ręki na gryfie gitary:</span>
+                </h5>
+                <ul className="list-disc list-inside text-slate-300 space-y-1.5">
+                  <li>
+                    <strong className="text-white">Dociskaj tuż przy metalowym progu:</strong> Nie na środku odległości ani bezpośrednio na metalu, lecz milimetr przed progiem. Wymaga to minimalnej siły i eliminuje brzęczenie struny.
+                  </li>
+                  <li>
+                    <strong className="text-white">Zegnij palce w „haczyki”:</strong> Uderzaj opuszkami prostopadle do podstrunnicy, aby nie tłumić sąsiadujących, niższych strun.
+                  </li>
+                  <li>
+                    <strong className="text-white">Pionowy widok rączki w aplikacji:</strong> W widoku gryfu możesz przełączyć widok na pionowy („Pionowy gryf”), co pozwala trzymać telefon lub tablet dokładnie tak, jak trzyma się prawdziwy gryf gitary w lewej dłoni!
                   </li>
                 </ul>
               </div>

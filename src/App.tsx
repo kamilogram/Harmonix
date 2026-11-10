@@ -12,6 +12,8 @@ import {
   getSmartNextChordOptions,
   getNoteLabel,
   NOTE_NAMES,
+  isTonicDegree,
+  isTonicDegreeMinor,
 } from './utils/musicTheory';
 import { sound } from './utils/audioEngine';
 import { Header } from './components/Header';
@@ -21,6 +23,7 @@ import { CircleOfFifths } from './components/CircleOfFifths';
 import { ProgressionLibrary, LoadedProgressionMetadata } from './components/ProgressionLibrary';
 import { FreePlaySandbox } from './components/FreePlaySandbox';
 import { ChordQuizGame } from './components/ChordQuizGame';
+import { GuitarFretboardGame } from './components/GuitarFretboardGame';
 import { scrollToTonalityProgressionBar, scrollToLoadedProgressionCard, scrollToFirstPianoKeyboard } from './utils/scrollHelper';
 import { recordPatternLoad } from './utils/sessionTracker';
 import {
@@ -29,15 +32,65 @@ import {
   BookOpen,
 } from 'lucide-react';
 
+const WORKSHOP_PROG_STORAGE_KEY = 'harmonix_workshop_loaded_progression_v1';
+
 export default function App() {
   const [activeView, setActiveView] = useState<'workshop' | 'library' | 'guess' | 'circle' | 'sandbox'>('workshop');
   const [isTheoryOpen, setIsTheoryOpen] = useState(false);
   const [convention, setConvention] = useState<NamingConvention>('international');
-  const [isMuted, setIsMuted] = useState(false);
-  const [loadedProgression, setLoadedProgression] = useState<ChordDefinition[] | null>(null);
-  const [loadedKeyInfo, setLoadedKeyInfo] = useState<LoadedProgressionMetadata | null>(null);
+  const [isMuted, setIsMuted] = useState<boolean>(() => sound.getIsMuted());
+
+  // Instrument switcher: 'piano' | 'guitar' (persisted in localStorage)
+  const [instrument, setInstrument] = useState<'piano' | 'guitar'>(() => {
+    try {
+      return localStorage.getItem('harmonix_active_instrument') === 'guitar' ? 'guitar' : 'piano';
+    } catch {
+      return 'piano';
+    }
+  });
+
+  const handleSelectInstrument = (inst: 'piano' | 'guitar') => {
+    setInstrument(inst);
+    try {
+      localStorage.setItem('harmonix_active_instrument', inst);
+    } catch {}
+  };
+
+  // User Request: Wczytywanie ostatnio wstawionego do warsztatu wzorca po ponownym uruchomieniu aplikacji
+  const [loadedProgression, setLoadedProgression] = useState<ChordDefinition[] | null>(() => {
+    try {
+      const raw = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && Array.isArray(parsed.chords) && parsed.chords.length > 0) {
+          return parsed.chords;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
+  const [loadedKeyInfo, setLoadedKeyInfo] = useState<LoadedProgressionMetadata | null>(() => {
+    try {
+      const raw = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed?.metadata) {
+          return parsed.metadata;
+        }
+      }
+    } catch {}
+    return null;
+  });
+
   const [loadedProgressionId, setLoadedProgressionId] = useState<string | null>(() => {
     try {
+      const rawWorkshop = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
+      if (rawWorkshop) {
+        const parsed = JSON.parse(rawWorkshop);
+        if (parsed?.metadata?.progId) return parsed.metadata.progId;
+        if (parsed?.progressionId) return parsed.progressionId;
+      }
       const raw = localStorage.getItem('harmonix_progression_library_settings_v1');
       if (raw) {
         const parsed = JSON.parse(raw);
@@ -46,6 +99,7 @@ export default function App() {
     } catch {}
     return null;
   });
+
   const [workshopResults, setWorkshopResults] = useState<Record<number, WorkshopStepResult>>(() => {
     try {
       const raw = localStorage.getItem('harmonix_workshop_results_v1');
@@ -73,31 +127,16 @@ export default function App() {
     } catch {}
   }, []);
 
-  const activeKeyLabel = useMemo(() => {
-    if (loadedProgression && loadedProgression.length > 0) {
-      const tonicStep = loadedProgression.find((c) => {
-        const d = c.functionDegree?.trim() || '';
-        return (
-          d === 'I' ||
-          d === 'i' ||
-          d.startsWith('I ') ||
-          d.startsWith('i ') ||
-          d.startsWith('I(') ||
-          d.startsWith('i(') ||
-          d.startsWith('Imaj') ||
-          d.startsWith('I7') ||
-          d.startsWith('i7')
-        ) && !d.startsWith('IV') && !d.startsWith('iv');
-      });
-      const root = tonicStep ? tonicStep.root : (loadedKeyInfo?.root || loadedProgression[0].root);
-      const mode = tonicStep
-        ? (tonicStep.functionDegree?.startsWith('i') || tonicStep.quality === 'minor' || tonicStep.quality === 'min7' ? 'minor' : 'major')
-        : (loadedKeyInfo?.mode || 'major');
-      const label = getNoteLabel(root, convention);
-      return convention === 'polish' ? `${label}-${mode === 'minor' ? 'moll' : 'dur'}` : `${label}${mode === 'minor' ? 'm' : ''}`;
-    }
-    return loadedKeyInfo?.keyName || (convention === 'polish' ? 'C-dur' : 'C');
-  }, [loadedProgression, loadedKeyInfo, convention]);
+  const handleClearLoadedProgression = useCallback(() => {
+    setLoadedProgression(null);
+    setLoadedKeyInfo(null);
+    setLoadedProgressionId(null);
+    setWorkshopResults({});
+    try {
+      localStorage.removeItem(WORKSHOP_PROG_STORAGE_KEY);
+      localStorage.removeItem('harmonix_workshop_results_v1');
+    } catch {}
+  }, []);
 
   const handleLoadFromLibrary = (
     chords: ChordDefinition[],
@@ -109,6 +148,16 @@ export default function App() {
     if (metadata?.progId) {
       setLoadedProgressionId(metadata.progId);
     }
+    try {
+      localStorage.setItem(
+        WORKSHOP_PROG_STORAGE_KEY,
+        JSON.stringify({
+          chords,
+          metadata: metadata || null,
+          progressionId: metadata?.progId || null,
+        })
+      );
+    } catch {}
     setWorkshopResults({});
     try {
       localStorage.removeItem('harmonix_workshop_results_v1');
@@ -123,6 +172,7 @@ export default function App() {
 
   const handleViewChange = useCallback((view: 'workshop' | 'library' | 'guess' | 'circle' | 'sandbox') => {
     setActiveView(view);
+    setInstrument('piano');
     if (view === 'library') {
       scrollToLoadedProgressionCard(loadedProgressionId);
     }
@@ -134,7 +184,7 @@ export default function App() {
         <div className="flex items-center gap-2">
           <span className="font-semibold text-slate-300">Harmonix</span>
           <span>·</span>
-          <span>Szachownica Progresji Fortepianowych</span>
+          <span>Szachownica Progresji Fortepianowych i Gitarowych</span>
         </div>
         <div className="flex items-center gap-4 flex-wrap justify-center">
           <button
@@ -194,6 +244,8 @@ export default function App() {
         onOpenTheory={() => setIsTheoryOpen(true)}
         isMuted={isMuted}
         onToggleMute={handleToggleMute}
+        instrument={instrument}
+        onSelectInstrument={handleSelectInstrument}
       />
 
       {/* Main Tab Panels Container: Independent native scroll containers for each tab */}
@@ -204,76 +256,19 @@ export default function App() {
           role="tabpanel"
           aria-label="Ćwiczenia"
           className={`absolute inset-0 overflow-y-auto ${
-            activeView === 'workshop' ? 'block' : 'hidden'
+            instrument === 'piano' && activeView === 'workshop' ? 'block' : 'hidden'
           }`}
         >
           <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
-            <div className="flex-1 space-y-6">
-              {/* Top Sub-Bar with Notation switch and prominent active tonality */}
-              <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 border-b border-slate-800 pb-4">
-                <div className="flex items-center gap-2 flex-wrap">
-                  <span className="w-2.5 h-2.5 rounded-full bg-amber-400"></span>
-                  <span className="text-sm font-semibold text-slate-300">
-                    Warsztat Harmoniczny
-                  </span>
-                  <div className="flex items-center gap-1.5 ml-1">
-                    <span className="text-xs text-slate-400">Tonacja ćwiczenia:</span>
-                    <span className="px-2.5 py-0.5 rounded-lg bg-amber-400 text-slate-950 font-black text-xs shadow-sm">
-                      {activeKeyLabel}
-                    </span>
-                    {loadedKeyInfo?.progName && (
-                      <span className="text-[11px] text-amber-300/80 font-medium hidden md:inline">
-                        ({loadedKeyInfo.progName})
-                      </span>
-                    )}
-                    {loadedKeyInfo?.degrees && (
-                      <span className="text-[11px] font-mono font-bold text-white bg-slate-900 px-2 py-0.5 rounded-lg border border-slate-800 hidden lg:inline">
-                        {loadedKeyInfo.degrees}
-                      </span>
-                    )}
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-2.5 self-start sm:self-auto">
-                  <div className="flex items-center bg-slate-900 border border-slate-800 rounded-xl p-1 text-xs">
-                    <button
-                      type="button"
-                      onClick={() => setConvention('polish')}
-                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                        convention === 'polish'
-                          ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Polskie (C - H)
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setConvention('international')}
-                      className={`px-3 py-1.5 rounded-lg font-medium transition-colors cursor-pointer ${
-                        convention === 'international'
-                          ? 'bg-amber-400 text-slate-950 font-bold shadow-sm'
-                          : 'text-slate-400 hover:text-slate-200'
-                      }`}
-                    >
-                      Intl (C - B)
-                    </button>
-                  </div>
-                </div>
-              </div>
-
+            <div className="flex-1 space-y-4">
               {/* Chessboard Progression Board */}
               <ChessboardProgressionBoard
                 convention={convention}
+                onSetConvention={setConvention}
                 onOpenTheory={() => setIsTheoryOpen(true)}
                 loadedProgression={loadedProgression}
                 loadedKeyInfo={loadedKeyInfo}
-                onClearLoadedProgression={() => {
-                  setLoadedProgression(null);
-                  setLoadedKeyInfo(null);
-                  setLoadedProgressionId(null);
-                  setWorkshopResults({});
-                }}
+                onClearLoadedProgression={handleClearLoadedProgression}
                 onUpdateWorkshopResults={handleUpdateWorkshopResults}
                 onNavigateToLibrary={() => handleViewChange('library')}
                 onLoadProgression={handleLoadFromLibrary}
@@ -289,7 +284,7 @@ export default function App() {
           role="tabpanel"
           aria-label="Wzorce"
           className={`absolute inset-0 overflow-y-auto ${
-            activeView === 'library' ? 'block' : 'hidden'
+            instrument === 'piano' && activeView === 'library' ? 'block' : 'hidden'
           }`}
         >
           <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
@@ -300,7 +295,7 @@ export default function App() {
                 workshopResults={workshopResults}
                 loadedProgressionId={loadedProgressionId}
                 onClearWorkshopResults={handleClearWorkshopResults}
-                isActiveView={activeView === 'library'}
+                isActiveView={instrument === 'piano' && activeView === 'library'}
               />
             </div>
             {renderFooter()}
@@ -313,14 +308,14 @@ export default function App() {
           role="tabpanel"
           aria-label="Odgadnij Akord"
           className={`absolute inset-0 overflow-y-auto ${
-            activeView === 'guess' ? 'block' : 'hidden'
+            instrument === 'piano' && activeView === 'guess' ? 'block' : 'hidden'
           }`}
         >
           <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
             <div className="flex-1">
               <ChordQuizGame
                 convention={convention}
-                isActiveTab={activeView === 'guess'}
+                isActiveTab={instrument === 'piano' && activeView === 'guess'}
               />
             </div>
             {renderFooter()}
@@ -333,7 +328,7 @@ export default function App() {
           role="tabpanel"
           aria-label="Koło Kwintowe"
           className={`absolute inset-0 overflow-y-auto ${
-            activeView === 'circle' ? 'block' : 'hidden'
+            instrument === 'piano' && activeView === 'circle' ? 'block' : 'hidden'
           }`}
         >
           <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
@@ -344,13 +339,13 @@ export default function App() {
           </div>
         </div>
 
-        {/* TAB 4: Free Play Sandbox (Physical Tab with independent scroll) */}
+        {/* TAB 5: Free Play Sandbox (Physical Tab with independent scroll) */}
         <div
           id="tabpanel-sandbox"
           role="tabpanel"
           aria-label="Swobodne Pianino"
           className={`absolute inset-0 overflow-y-auto ${
-            activeView === 'sandbox' ? 'block' : 'hidden'
+            instrument === 'piano' && activeView === 'sandbox' ? 'block' : 'hidden'
           }`}
         >
           <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
@@ -361,6 +356,27 @@ export default function App() {
                   setLoadedProgression([chord]);
                   setActiveView('workshop');
                 }}
+              />
+            </div>
+            {renderFooter()}
+          </div>
+        </div>
+
+        {/* TAB 6: Rączka i Gryf Gitary (Guitar Fretboard & Chord Guessing) */}
+        <div
+          id="tabpanel-guitar"
+          role="tabpanel"
+          aria-label="Gryf Gitary"
+          className={`absolute inset-0 overflow-y-auto ${
+            instrument === 'guitar' ? 'block' : 'hidden'
+          }`}
+        >
+          <div className="max-w-7xl w-full mx-auto px-3 sm:px-6 py-4 sm:py-6 space-y-6 flex flex-col min-h-full">
+            <div className="flex-1">
+              <GuitarFretboardGame
+                convention={convention}
+                onOpenTheory={() => setIsTheoryOpen(true)}
+                onBackToPiano={() => handleSelectInstrument('piano')}
               />
             </div>
             {renderFooter()}

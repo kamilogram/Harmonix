@@ -14,6 +14,10 @@ import {
   getNoteLabel,
   hasFiveNoteChords,
   getFiveNoteChordsInProgression,
+  isTonicDegree,
+  isTonicDegreeMinor,
+  validateOrCorrectChordDegree,
+  getExpectedChordForDegree,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { scrollToLoadedProgressionCard } from '../utils/scrollHelper';
@@ -446,21 +450,8 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
 
   // Helper to determine original base root of a progression
   const getProgressionOriginalRoot = (prog: FamousProgression): NoteName => {
-    // 1. Check if any step explicitly declares tonic degree (I, i, Imaj7, I7, i7, etc.)
-    const tonicStep = prog.steps.find((st) => {
-      const d = st.degree.trim();
-      return (
-        d === 'I' ||
-        d === 'i' ||
-        d.startsWith('I ') ||
-        d.startsWith('i ') ||
-        d.startsWith('I(') ||
-        d.startsWith('i(') ||
-        d.startsWith('Imaj') ||
-        d.startsWith('I7') ||
-        d.startsWith('i7')
-      ) && !d.startsWith('IV') && !d.startsWith('iv');
-    });
+    // 1. Check if any step explicitly declares tonic degree (I, i, Iadd9, Isus2, I6, Imaj7, i7, etc.)
+    const tonicStep = prog.steps.find((st) => isTonicDegree(st.degree));
 
     if (tonicStep) {
       const parsed = parseChordSymbol(tonicStep.symbol);
@@ -490,26 +481,12 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
     if (k.includes('moll') || k.includes('minor')) return true;
     if (k.includes('dur') || k.includes('major')) return false;
 
-    const tonicStep = prog.steps.find((st) => {
-      const d = st.degree.trim();
-      return (
-        d === 'I' ||
-        d === 'i' ||
-        d.startsWith('I ') ||
-        d.startsWith('i ') ||
-        d.startsWith('I(') ||
-        d.startsWith('i(') ||
-        d.startsWith('Imaj') ||
-        d.startsWith('I7') ||
-        d.startsWith('i7')
-      ) && !d.startsWith('IV') && !d.startsWith('iv');
-    });
+    const tonicStep = prog.steps.find((st) => isTonicDegree(st.degree));
 
     if (tonicStep) {
-      const d = tonicStep.degree.trim();
-      if (d === 'i' || d.startsWith('i')) return true;
+      if (isTonicDegreeMinor(tonicStep.degree)) return true;
       const parsed = parseChordSymbol(tonicStep.symbol);
-      return parsed.quality === 'minor' || parsed.quality === 'min7' || parsed.quality === 'minor6' || parsed.quality === 'm7b5';
+      return parsed.quality === 'minor' || parsed.quality === 'min7' || parsed.quality === 'min9' || parsed.quality === 'minSixNine' || parsed.quality === 'minor6' || parsed.quality === 'm7b5';
     }
 
     return false;
@@ -539,28 +516,38 @@ export const ProgressionLibrary: React.FC<ProgressionLibraryProps> = ({
       const parsed = parseChordSymbol(st.symbol);
       const oldRootIdx = NOTE_NAMES.indexOf(parsed.root);
       const newRoot = NOTE_NAMES[(oldRootIdx + semitonesDelta) % 12];
-      const chord = createChordDefinition(newRoot, parsed.quality, st.degree, st.role);
+      let chord = createChordDefinition(newRoot, parsed.quality, st.degree, st.role);
+      // Validate and ensure degree alignment with targetKey
+      chord = validateOrCorrectChordDegree(chord, targetKey, isMinorBase ? 'minor' : 'major');
       chord.section = st.section;
 
       let displaySymbol = chord.symbol;
       if (convention === 'polish') {
-        const rootLabel = getNoteLabel(newRoot, 'polish');
-        if (parsed.quality === 'minor') displaySymbol = `${rootLabel}m`;
-        else if (parsed.quality === 'major') displaySymbol = rootLabel;
-        else if (parsed.quality === 'dom7') displaySymbol = `${rootLabel}7`;
-        else if (parsed.quality === 'maj7') displaySymbol = `${rootLabel}maj7`;
-        else if (parsed.quality === 'min7') displaySymbol = `${rootLabel}m7`;
-        else if (parsed.quality === 'm7b5') displaySymbol = `${rootLabel}m7b5`;
-        else if (parsed.quality === 'augmented') displaySymbol = `${rootLabel}aug`;
-        else if (parsed.quality === 'diminished') displaySymbol = `${rootLabel}dim`;
-        else if (parsed.quality === 'dim7') displaySymbol = `${rootLabel}dim7`;
-        else if (parsed.quality === 'sus4') displaySymbol = `${rootLabel}sus4`;
-        else if (parsed.quality === 'sus2') displaySymbol = `${rootLabel}sus2`;
-        else if (parsed.quality === 'dom7sus4') displaySymbol = `${rootLabel}7sus4`;
-        else if (parsed.quality === 'major6') displaySymbol = `${rootLabel}6`;
-        else if (parsed.quality === 'minor6') displaySymbol = `${rootLabel}m6`;
-        else if (parsed.quality === 'add9') displaySymbol = `${rootLabel}add9`;
-        else displaySymbol = `${rootLabel}${chord.displayQuality}`;
+        const rootLabel = getNoteLabel(chord.root, 'polish');
+        if (chord.quality === 'minor') displaySymbol = `${rootLabel}m`;
+        else if (chord.quality === 'major') displaySymbol = rootLabel;
+        else if (chord.quality === 'dom7') displaySymbol = `${rootLabel}7`;
+        else if (chord.quality === 'maj7') displaySymbol = `${rootLabel}maj7`;
+        else if (chord.quality === 'min7') displaySymbol = `${rootLabel}m7`;
+        else if (chord.quality === 'min9') displaySymbol = `${rootLabel}m9`;
+        else if (chord.quality === 'maj9') displaySymbol = `${rootLabel}maj9`;
+        else if (chord.quality === 'dom9') displaySymbol = `${rootLabel}9`;
+        else if (chord.quality === 'sixNine') displaySymbol = `${rootLabel}6/9`;
+        else if (chord.quality === 'minSixNine') displaySymbol = `${rootLabel}m6/9`;
+        else if (chord.quality === 'dom7b9') displaySymbol = `${rootLabel}7b9`;
+        else if (chord.quality === 'dom7sharp9') displaySymbol = `${rootLabel}7#9`;
+        else if (chord.quality === 'nineSus4') displaySymbol = `${rootLabel}9sus4`;
+        else if (chord.quality === 'm7b5') displaySymbol = `${rootLabel}m7b5`;
+        else if (chord.quality === 'augmented') displaySymbol = `${rootLabel}aug`;
+        else if (chord.quality === 'diminished') displaySymbol = `${rootLabel}dim`;
+        else if (chord.quality === 'dim7') displaySymbol = `${rootLabel}dim7`;
+        else if (chord.quality === 'sus4') displaySymbol = `${rootLabel}sus4`;
+        else if (chord.quality === 'sus2') displaySymbol = `${rootLabel}sus2`;
+        else if (chord.quality === 'dom7sus4') displaySymbol = `${rootLabel}7sus4`;
+        else if (chord.quality === 'major6') displaySymbol = `${rootLabel}6`;
+        else if (chord.quality === 'minor6') displaySymbol = `${rootLabel}m6`;
+        else if (chord.quality === 'add9') displaySymbol = `${rootLabel}add9`;
+        else displaySymbol = chord.polishSymbol;
       }
 
       return {

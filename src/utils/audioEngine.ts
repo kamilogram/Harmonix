@@ -11,11 +11,21 @@
  * 7. Velocity-sensitive timbre & dynamic polyphonic headroom scaling
  */
 
+const STORAGE_AUDIO_MUTED_KEY = 'harmonix_audio_muted_v1';
+
+function getStoredMuteState(): boolean {
+  try {
+    return localStorage.getItem(STORAGE_AUDIO_MUTED_KEY) === 'true';
+  } catch {
+    return false;
+  }
+}
+
 class AudioEngine {
   private ctx: AudioContext | null = null;
   private masterGain: GainNode | null = null;
   private soundboardGain: GainNode | null = null;
-  private isMuted: boolean = false;
+  private isMuted: boolean = getStoredMuteState();
   private activeNotes: Map<number, () => void> = new Map();
 
   private initContext() {
@@ -337,12 +347,171 @@ class AudioEngine {
     }
   }
 
+  /**
+   * Play an authentic acoustic guitar plucked string note:
+   * - Sharp plectrum/finger attack transient
+   * - Steel/bronze string harmonics (triangle + subtle saw + detune)
+   * - Warm wooden guitar body acoustic resonance
+   */
+  public playGuitarNote(
+    midi: number,
+    duration: number = 2.4,
+    velocity: number = 0.88,
+    exactStartTime?: number
+  ): () => void {
+    if (this.isMuted) return () => {};
+    this.initContext();
+    if (!this.ctx || !this.masterGain) return () => {};
+
+    const now = exactStartTime !== undefined ? exactStartTime : this.ctx.currentTime + 0.002;
+    const baseFreq = this.midiToFreq(midi);
+
+    // Stop existing voice on this MIDI pitch
+    const existing = this.activeNotes.get(midi);
+    if (existing) {
+      existing();
+      this.activeNotes.delete(midi);
+    }
+
+    const voiceGain = this.ctx.createGain();
+    voiceGain.gain.setValueAtTime(0.0001, now);
+    // Fast 3ms pluck attack - very crisp pick strike
+    voiceGain.gain.linearRampToValueAtTime(velocity * 0.44, now + 0.003);
+    // Initial string pluck release
+    voiceGain.gain.exponentialRampToValueAtTime(velocity * 0.28, now + 0.07);
+    // Warm acoustic guitar body decay
+    voiceGain.gain.exponentialRampToValueAtTime(0.0001, now + duration);
+
+    // Acoustic guitar body filter (warm mid-range resonance with steep high-frequency roll-off)
+    const guitarFilter = this.ctx.createBiquadFilter();
+    guitarFilter.type = 'lowpass';
+    const cutoff = Math.min(7500, Math.max(1400, baseFreq * 3.8 + velocity * 1800));
+    guitarFilter.frequency.setValueAtTime(cutoff, now);
+    guitarFilter.frequency.exponentialRampToValueAtTime(Math.max(600, cutoff * 0.35), now + duration * 0.6);
+    guitarFilter.Q.setValueAtTime(0.7, now);
+
+    // Wooden guitar body cavity peaking filter (simulates sound hole resonance at ~190Hz)
+    const bodyResonance = this.ctx.createBiquadFilter();
+    bodyResonance.type = 'peaking';
+    bodyResonance.frequency.setValueAtTime(190, now);
+    bodyResonance.Q.setValueAtTime(1.2, now);
+    bodyResonance.gain.setValueAtTime(2.2, now);
+
+    // Plectrum click transient (noise burst for 10ms)
+    try {
+      const bufferSize = Math.floor(this.ctx.sampleRate * 0.012);
+      const noiseBuffer = this.ctx.createBuffer(1, bufferSize, this.ctx.sampleRate);
+      const output = noiseBuffer.getChannelData(0);
+      for (let i = 0; i < bufferSize; i++) {
+        output[i] = (Math.random() * 2 - 1) * Math.exp(-i / (bufferSize * 0.3));
+      }
+      const noiseNode = this.ctx.createBufferSource();
+      noiseNode.buffer = noiseBuffer;
+      const noiseFilter = this.ctx.createBiquadFilter();
+      noiseFilter.type = 'bandpass';
+      noiseFilter.frequency.setValueAtTime(3200, now);
+      noiseFilter.Q.setValueAtTime(1.5, now);
+      const noiseGain = this.ctx.createGain();
+      noiseGain.gain.setValueAtTime(velocity * 0.14, now);
+      noiseGain.gain.exponentialRampToValueAtTime(0.0001, now + 0.012);
+
+      noiseNode.connect(noiseFilter);
+      noiseFilter.connect(noiseGain);
+      noiseGain.connect(voiceGain);
+      noiseNode.start(now);
+      noiseNode.stop(now + 0.015);
+    } catch {}
+
+    // String partials: fundamental + octave overtone
+    const osc1 = this.ctx.createOscillator();
+    osc1.type = 'triangle';
+    osc1.frequency.setValueAtTime(baseFreq, now);
+
+    const osc2 = this.ctx.createOscillator();
+    osc2.type = 'sawtooth';
+    osc2.frequency.setValueAtTime(baseFreq * 1.002, now); // subtle string detune
+
+    const osc2Gain = this.ctx.createGain();
+    osc2Gain.gain.setValueAtTime(0.18, now);
+    osc2Gain.gain.exponentialRampToValueAtTime(0.001, now + duration * 0.4);
+
+    osc1.connect(voiceGain);
+    osc2.connect(osc2Gain);
+    osc2Gain.connect(voiceGain);
+
+    voiceGain.connect(guitarFilter);
+    guitarFilter.connect(bodyResonance);
+    bodyResonance.connect(this.masterGain);
+
+    osc1.start(now);
+    osc2.start(now);
+    osc1.stop(now + duration + 0.05);
+    osc2.stop(now + duration + 0.05);
+
+    const stopFn = () => {
+      try {
+        const t = this.ctx?.currentTime || now;
+        voiceGain.gain.cancelScheduledValues(t);
+        voiceGain.gain.setValueAtTime(voiceGain.gain.value, t);
+        voiceGain.gain.exponentialRampToValueAtTime(0.0001, t + 0.08);
+        setTimeout(() => {
+          try {
+            osc1.stop();
+            osc2.stop();
+          } catch {}
+        }, 90);
+      } catch {}
+    };
+
+    this.activeNotes.set(midi, stopFn);
+    setTimeout(() => {
+      if (this.activeNotes.get(midi) === stopFn) {
+        this.activeNotes.delete(midi);
+      }
+    }, duration * 1000);
+
+    return stopFn;
+  }
+
+  /**
+   * Strum a guitar chord across strings with realistic physical pick speed
+   * (downstroke: bass to treble, or upstroke: treble to bass)
+   */
+  public playGuitarStrum(
+    midiNotes: number[],
+    duration: number = 2.6,
+    direction: 'down' | 'up' = 'down',
+    speedMs: number = 26,
+    velocity: number = 0.88
+  ): void {
+    if (this.isMuted || midiNotes.length === 0) return;
+    this.initContext();
+    if (!this.ctx) return;
+
+    // Filter valid notes and preserve string order or sort
+    const notes = direction === 'down'
+      ? [...midiNotes].sort((a, b) => a - b)
+      : [...midiNotes].sort((a, b) => b - a);
+
+    const startTime = this.ctx.currentTime + 0.003;
+    const intervalSeconds = speedMs / 1000;
+
+    notes.forEach((midi, idx) => {
+      const noteTime = startTime + idx * intervalSeconds;
+      const vel = velocity * (idx === 0 ? 1.05 : 0.95);
+      this.playGuitarNote(midi, duration, vel, noteTime);
+    });
+  }
+
   public setMuted(muted: boolean) {
     this.isMuted = muted;
+    try {
+      localStorage.setItem(STORAGE_AUDIO_MUTED_KEY, String(muted));
+    } catch {}
   }
 
   public toggleMute(): boolean {
-    this.isMuted = !this.isMuted;
+    this.setMuted(!this.isMuted);
     return this.isMuted;
   }
 
@@ -352,3 +521,22 @@ class AudioEngine {
 }
 
 export const sound = new AudioEngine();
+
+/**
+ * Spoken voice announcement in Polish using Web Speech API
+ */
+export function speakAnnouncement(text: string): void {
+  if (typeof window === 'undefined' || !('speechSynthesis' in window)) return;
+  try {
+    window.speechSynthesis.cancel();
+    const utterance = new SpeechSynthesisUtterance(text);
+    utterance.lang = 'pl-PL';
+    utterance.rate = 1.02;
+    utterance.pitch = 1.0;
+    const voices = window.speechSynthesis.getVoices();
+    const plVoice = voices.find((v) => v.lang.toLowerCase().startsWith('pl'));
+    if (plVoice) utterance.voice = plVoice;
+    window.speechSynthesis.speak(utterance);
+  } catch {}
+}
+

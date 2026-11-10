@@ -35,3 +35,13 @@
 .history-modal-scrollbar::-webkit-scrollbar-thumb:hover {
   background: #fbbf24;
 }
+
+/* Touch & gesture immunity for instrument surfaces (guitar fretboard & piano keys) */
+.instrument-touch-surface {
+  touch-action: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -webkit-touch-callout: none !important;
+  overscroll-behavior: contain !important;
+}
+

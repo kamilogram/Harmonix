@@ -467,40 +467,32 @@ export const SmartProgressionGenerator: React.FC<SmartProgressionGeneratorProps>
           <div className="flex items-center gap-2 overflow-x-auto pb-2 pt-1 scrollbar-thin scrollbar-thumb-slate-800">
             {generatedProg.steps.map((st, sIdx) => {
               const parsed = parseChordSymbol(st.symbol);
-              const label =
-                convention === 'polish'
-                  ? `${getNoteLabel(parsed.root, 'polish')}${
-                      parsed.quality === 'major'
-                        ? ''
-                        : parsed.quality === 'minor'
-                        ? 'm'
-                        : parsed.quality === 'maj7'
-                        ? 'maj7'
-                        : parsed.quality === 'min7'
-                        ? 'm7'
-                        : parsed.quality === 'dom7'
-                        ? '7'
-                        : parsed.quality === 'major6'
-                        ? '6'
-                        : parsed.quality === 'minor6'
-                        ? 'm6'
-                        : parsed.quality === 'diminished'
-                        ? 'dim'
-                        : parsed.quality === 'dim7'
-                        ? 'dim7'
-                        : parsed.quality === 'augmented'
-                        ? 'aug'
-                        : parsed.quality === 'sus2'
-                        ? 'sus2'
-                        : parsed.quality === 'sus4'
-                        ? 'sus4'
-                        : parsed.quality === 'dom7sus4'
-                        ? '7sus4'
-                        : parsed.quality === 'add9'
-                        ? 'add9'
-                        : ''
-                    }`
-                  : st.symbol;
+              const suffix =
+                parsed.quality === 'major' ? '' :
+                parsed.quality === 'minor' ? 'm' :
+                parsed.quality === 'maj7' ? 'maj7' :
+                parsed.quality === 'min7' ? 'm7' :
+                parsed.quality === 'dom7' ? '7' :
+                parsed.quality === 'major6' ? '6' :
+                parsed.quality === 'minor6' ? 'm6' :
+                parsed.quality === 'diminished' ? 'dim' :
+                parsed.quality === 'dim7' ? 'dim7' :
+                parsed.quality === 'm7b5' ? 'm7b5' :
+                parsed.quality === 'augmented' ? 'aug' :
+                parsed.quality === 'sus2' ? 'sus2' :
+                parsed.quality === 'sus4' ? 'sus4' :
+                parsed.quality === 'dom7sus4' ? '7sus4' :
+                parsed.quality === 'add9' ? 'add9' :
+                parsed.quality === 'dom9' ? '9' :
+                parsed.quality === 'maj9' ? 'maj9' :
+                parsed.quality === 'min9' ? 'm9' :
+                parsed.quality === 'sixNine' ? '6/9' :
+                parsed.quality === 'minSixNine' ? 'm6/9' :
+                parsed.quality === 'dom7b9' ? '7b9' :
+                parsed.quality === 'dom7sharp9' ? '7#9' :
+                parsed.quality === 'nineSus4' ? '9sus4' :
+                parsed.quality === 'power5' ? '5' : '';
+              const label = convention === 'polish' ? `${getNoteLabel(parsed.root, 'polish')}${suffix}` : st.symbol;
 
               const isNewSection =
                 Boolean(st.section) &&

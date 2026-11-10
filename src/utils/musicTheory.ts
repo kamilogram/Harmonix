@@ -262,6 +262,173 @@ export const STARTER_CHORDS: { root: NoteName; quality: ChordQuality; key: strin
 ];
 
 /**
+ * Checks if a Roman numeral degree represents a tonic chord (I, i, Iadd9, Isus2, Isus4, I6, Imaj7, i7, etc.)
+ * Strictly excludes non-tonic degrees like IV, iv, ii, iii, etc.
+ */
+export function isTonicDegree(degree: string | undefined | null): boolean {
+  if (!degree) return false;
+  const d = degree.trim();
+  if (d.startsWith('#') || d.startsWith('b')) return false;
+  return /^(I|i)(?![VvXxIi])([a-z0-9ø°+#/(-]|\s|$)/.test(d);
+}
+
+/**
+ * Checks if a tonic degree represents a minor chord (e.g. i, i7, i6, i9, iadd9, etc.)
+ */
+export function isTonicDegreeMinor(degree: string | undefined | null): boolean {
+  if (!degree) return false;
+  const d = degree.trim();
+  if (!isTonicDegree(d)) return false;
+  if (d.startsWith('i') && !d.startsWith('I')) return true;
+  return d.toLowerCase().includes('moll') || d.toLowerCase().includes('minor');
+}
+
+/**
+ * Returns the semitone offset (0..11) from key tonic for a given Roman numeral degree.
+ */
+export function getDegreeSemitoneOffset(degree: string, mode: 'major' | 'minor' = 'major'): number | null {
+  if (!degree) return null;
+  const d = degree.trim();
+  const token = d.split(/[\s(]/)[0];
+
+  // 1st degree (I, i, Iadd9, Isus2, Imaj7, etc.)
+  if (/^(I|i)(?![VvXxIi])/i.test(token)) return 0;
+  // bII / subV / Neapolitan
+  if (/^(bII|bii|subV|N)/i.test(token)) return 1;
+  // #I
+  if (/^#I/i.test(token)) return 1;
+  // II / ii (strictly not III, iii, iv, IV)
+  if (/^(II|ii)(?![IivV])/i.test(token)) return 2;
+  // #II
+  if (/^#II/i.test(token)) return 3;
+  // bIII / biii
+  if (/^(bIII|biii)/i.test(token)) return 3;
+  // III / iii
+  if (/^(III|iii)/i.test(token)) return mode === 'minor' ? 3 : 4;
+  // bV / #IV (strictly not bVI or bVII!)
+  if (/^(#IV|#iv|bV(?![IivV]))/i.test(token)) return 6;
+  // IV / iv (IVsus2, IVmaj7, iv6, etc.)
+  if (/^(IV|iv)/i.test(token)) return 5;
+  // V / v (strictly not VI or VII)
+  if (/^(V|v)(?![IivV])/i.test(token)) return 7;
+  // bVI / bvi (strictly not bVII)
+  if (/^(bVI|bvi)(?![IivV])/i.test(token)) return 8;
+  // bVII / bvii
+  if (/^(bVII|bvii)/i.test(token)) return 10;
+  // VI / vi (strictly not VII)
+  if (/^(VI|vi)(?![IivV])/i.test(token)) return mode === 'minor' ? 8 : 9;
+  // VII / vii
+  if (/^(VII|vii)/i.test(token)) return mode === 'minor' ? 10 : 11;
+
+  return null;
+}
+
+/**
+ * Returns expected root note and quality for a Roman numeral degree in a given key
+ */
+export function getExpectedChordForDegree(
+  degree: string,
+  keyRoot: NoteName,
+  mode: 'major' | 'minor' = 'major'
+): { root: NoteName; quality: ChordQuality } | null {
+  const offset = getDegreeSemitoneOffset(degree, mode);
+  if (offset === null) return null;
+
+  const keyRootIdx = NOTE_NAMES.indexOf(keyRoot);
+  const root = NOTE_NAMES[(keyRootIdx + offset) % 12];
+
+  // Infer quality from degree token
+  const d = degree.trim();
+  const token = d.split(/[\s(]/)[0];
+  const cleaned = token.replace(/^(bb|b|#|sub)/i, '');
+  const lowerToken = token.toLowerCase();
+
+  // In Roman numeral notation, lowercase Roman numerals (i, ii, iii, iv, v, vi, vii)
+  // or explicit minor modifiers denote minor chords.
+  const isMinorDegree =
+    /^[ivx]/.test(cleaned) ||
+    /\b(min|moll|m)(?!aj)/i.test(cleaned) ||
+    /[°ø]/.test(token) ||
+    lowerToken.includes('dim') ||
+    lowerToken.includes('m7b5');
+
+  let quality: ChordQuality = isMinorDegree ? 'minor' : 'major';
+
+  if (lowerToken.includes('sus2')) {
+    quality = 'sus2';
+  } else if (lowerToken.includes('7sus4')) {
+    quality = 'dom7sus4';
+  } else if (lowerToken.includes('9sus4')) {
+    quality = 'nineSus4';
+  } else if (lowerToken.includes('sus4') || lowerToken.includes('sus')) {
+    quality = 'sus4';
+  } else if (lowerToken.includes('maj9') || lowerToken.includes('dur9') || lowerToken.includes('Δ9')) {
+    quality = 'maj9';
+  } else if (lowerToken.includes('maj7') || lowerToken.includes('dur7') || lowerToken.includes('Δ7')) {
+    quality = 'maj7';
+  } else if (lowerToken.includes('6/9') || lowerToken.includes('69')) {
+    quality = isMinorDegree ? 'minSixNine' : 'sixNine';
+  } else if (lowerToken.includes('m7b5') || token.includes('ø')) {
+    quality = 'm7b5';
+  } else if (lowerToken.includes('dim7') || token.includes('°7')) {
+    quality = 'dim7';
+  } else if (lowerToken.includes('dim') || token.includes('°') || lowerToken.includes('viio')) {
+    quality = 'diminished';
+  } else if (lowerToken.includes('aug') || token.includes('+')) {
+    quality = 'augmented';
+  } else if (lowerToken.includes('7b9') || lowerToken.includes('b9')) {
+    quality = 'dom7b9';
+  } else if (lowerToken.includes('7#9') || lowerToken.includes('#9')) {
+    quality = 'dom7sharp9';
+  } else if (lowerToken.includes('min9') || lowerToken.includes('m9') || lowerToken.includes('moll9')) {
+    quality = 'min9';
+  } else if (lowerToken.includes('min7') || lowerToken.includes('m7') || lowerToken.includes('moll7')) {
+    quality = 'min7';
+  } else if (lowerToken.includes('add9')) {
+    quality = isMinorDegree ? 'min9' : 'add9';
+  } else if (lowerToken.includes('dom9')) {
+    quality = isMinorDegree ? 'min9' : 'dom9';
+  } else if (lowerToken.includes('9')) {
+    // Crucial: A Roman numeral with 9 on a minor degree (ii9, vi9, iii9, i9, iv9, v9, bvii9, etc.)
+    // is a MINOR 9th chord (min9), NEVER a dominant 9th (dom9)!
+    quality = isMinorDegree ? 'min9' : 'dom9';
+  } else if (lowerToken.includes('7')) {
+    quality = isMinorDegree ? 'min7' : 'dom7';
+  } else if (lowerToken.includes('6')) {
+    quality = isMinorDegree ? 'minor6' : 'major6';
+  } else if (lowerToken.includes('5')) {
+    quality = 'power5';
+  } else {
+    quality = isMinorDegree ? 'minor' : 'major';
+  }
+
+  return { root, quality };
+}
+
+/**
+ * Validates and corrects chord definition if its root or quality diverges from the expected degree in the key
+ */
+export function validateOrCorrectChordDegree(
+  chord: ChordDefinition,
+  keyRoot: NoteName,
+  mode: 'major' | 'minor' = 'major'
+): ChordDefinition {
+  if (!chord.functionDegree) return chord;
+  const expected = getExpectedChordForDegree(chord.functionDegree, keyRoot, mode);
+  if (!expected) return chord;
+
+  if (chord.root !== expected.root || chord.quality !== expected.quality) {
+    return createChordDefinition(
+      expected.root,
+      expected.quality,
+      chord.functionDegree,
+      chord.emotionalRole
+    );
+  }
+  return chord;
+}
+
+/**
  * Dynamic music theory logic: suggest next chords based on current chord and progression
  */
 export function getSmartNextChordOptions(
@@ -269,6 +436,53 @@ export function getSmartNextChordOptions(
   keyRoot: NoteName = 'C',
   keyType: 'major' | 'minor' = 'major'
 ): QuizChoice[] {
+  // If not in key C, transpose progression to C, get choices, and transpose back!
+  if (keyRoot !== 'C') {
+    const deltaToC = (NOTE_NAMES.indexOf('C') - NOTE_NAMES.indexOf(keyRoot) + 12) % 12;
+    const deltaFromC = (NOTE_NAMES.indexOf(keyRoot) - NOTE_NAMES.indexOf('C') + 12) % 12;
+
+    const progressionInC = progression.map((c) => transposeChord(c, deltaToC));
+    const choicesInC = getSmartNextChordOptions(progressionInC, 'C', keyType);
+
+    return choicesInC.map((choice) => {
+      const transposedChord = transposeChord(choice.chord, deltaFromC);
+      const verifiedChord = validateOrCorrectChordDegree(transposedChord, keyRoot, keyType);
+
+      const newPlRoot = getNoteLabel(verifiedChord.root, 'polish');
+      const oldPlRoot = getNoteLabel(choice.chord.root, 'polish');
+
+      let degreeName = choice.degreeName;
+      if (verifiedChord.functionDegree) {
+        degreeName = `${verifiedChord.functionDegree} (${verifiedChord.polishSymbol})`;
+      } else {
+        degreeName = degreeName
+          .replace(new RegExp(`\\b${choice.chord.symbol}\\b`, 'g'), verifiedChord.symbol)
+          .replace(new RegExp(`${oldPlRoot}-dur`, 'g'), `${newPlRoot}-dur`)
+          .replace(new RegExp(`${oldPlRoot}-moll`, 'g'), `${newPlRoot}-moll`)
+          .replace(new RegExp(`\\b${oldPlRoot}\\b`, 'g'), newPlRoot);
+      }
+
+      const explanation = choice.explanation
+        .replace(new RegExp(`\\b${choice.chord.symbol}\\b`, 'g'), verifiedChord.symbol)
+        .replace(new RegExp(`${oldPlRoot}-dur`, 'g'), `${newPlRoot}-dur`)
+        .replace(new RegExp(`${oldPlRoot}-moll`, 'g'), `${newPlRoot}-moll`);
+
+      const whyItWorks = choice.whyItWorks
+        .replace(new RegExp(`\\b${choice.chord.symbol}\\b`, 'g'), verifiedChord.symbol)
+        .replace(new RegExp(`${oldPlRoot}-dur`, 'g'), `${newPlRoot}-dur`)
+        .replace(new RegExp(`${oldPlRoot}-moll`, 'g'), `${newPlRoot}-moll`);
+
+      return {
+        ...choice,
+        id: `${choice.id}_${verifiedChord.symbol}_${keyRoot}`,
+        chord: verifiedChord,
+        degreeName,
+        explanation,
+        whyItWorks,
+      };
+    });
+  }
+
   const currentChord = progression[progression.length - 1];
   const stepCount = progression.length;
 
@@ -2340,14 +2554,14 @@ export function parseChordSymbol(symbol: string): { root: NoteName; quality: Cho
     rest = clean;
   }
 
-  // Strip leading hyphens or spaces (e.g. "-dur", "-moll", " dur", " moll")
-  rest = rest.replace(/^[\s-]+/, '').trim().toLowerCase();
+  // Strip leading hyphens or spaces and normalize parentheses (e.g. Dm(add9), C(add9))
+  rest = rest.replace(/^[\s-]+/, '').replace(/[\(\)]/g, '').trim().toLowerCase();
 
   let quality: ChordQuality = 'major';
   if (rest === 'm6/9' || rest === 'm69' || rest === 'min6/9' || rest === 'min69' || rest === 'moll6/9') quality = 'minSixNine';
   else if (rest === '6/9' || rest === '69' || rest === 'dur6/9') quality = 'sixNine';
   else if (rest === 'maj9' || rest === 'dur9') quality = 'maj9';
-  else if (rest === 'm9' || rest === 'min9' || rest === 'moll9') quality = 'min9';
+  else if (rest === 'm9' || rest === 'min9' || rest === 'moll9' || rest === 'madd9' || rest === 'minadd9' || rest === 'molladd9') quality = 'min9';
   else if (rest === '7b9' || rest === '7-9') quality = 'dom7b9';
   else if (rest === '7#9' || rest === '7+9') quality = 'dom7sharp9';
   else if (rest === '9sus4' || rest === '9sus') quality = 'nineSus4';

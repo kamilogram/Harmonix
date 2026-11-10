@@ -15,6 +15,10 @@ import {
   getNoteLabel,
   NOTE_NAMES,
   detectChordFromNotes,
+  isTonicDegree,
+  isTonicDegreeMinor,
+  validateOrCorrectChordDegree,
+  getExpectedChordForDegree,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { PianoKeyboard } from './PianoKeyboard';
@@ -45,6 +49,8 @@ import {
   ArrowLeftRight,
   Wand2,
   Music,
+  SlidersHorizontal,
+  GraduationCap,
 } from 'lucide-react';
 import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormula } from './ProgressionLibrary';
 import { scrollToTonalityProgressionBar, scrollToFirstPianoKeyboard } from '../utils/scrollHelper';
@@ -114,6 +120,7 @@ interface BoardStep {
 
 interface ChessboardProgressionBoardProps {
   convention: NamingConvention;
+  onSetConvention?: (conv: NamingConvention) => void;
   onOpenTheory: () => void;
   loadedProgression?: ChordDefinition[] | null;
   loadedKeyInfo?: LoadedProgressionMetadata | null;
@@ -520,18 +527,38 @@ function createScreenshotStarterSteps(): BoardStep[] {
 
 // Helper to build progression steps from a preset list
 function buildStepsFromProgression(
-  progression: { root: NoteName; quality: ChordQuality; deg: string }[]
+  progression: { root: NoteName; quality: ChordQuality; deg: string }[],
+  keyRoot?: NoteName,
+  keyMode?: 'major' | 'minor'
 ): BoardStep[] {
+  let detectedRoot: NoteName = keyRoot || 'C';
+  let detectedMode: 'major' | 'minor' = keyMode || 'major';
+  if (!keyRoot) {
+    const tonicItem = progression.find((p) => isTonicDegree(p.deg));
+    if (tonicItem) {
+      detectedRoot = tonicItem.root;
+      detectedMode = isTonicDegreeMinor(tonicItem.deg) || ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(tonicItem.quality) ? 'minor' : 'major';
+    } else if (progression[0]) {
+      detectedRoot = progression[0].root;
+      detectedMode = ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(progression[0].quality) ? 'minor' : 'major';
+    }
+  }
+
   return progression.map((item, idx) => {
-    const targetChord = createChordDefinition(item.root, item.quality, item.deg);
+    let targetChord = createChordDefinition(item.root, item.quality, item.deg);
+    targetChord = validateOrCorrectChordDegree(targetChord, detectedRoot, detectedMode);
+
     const prevChords = progression
       .slice(0, idx)
-      .map((p) => createChordDefinition(p.root, p.quality, p.deg));
+      .map((p) => {
+        const c = createChordDefinition(p.root, p.quality, p.deg);
+        return validateOrCorrectChordDegree(c, detectedRoot, detectedMode);
+      });
 
     let choices = getSmartNextChordOptions(
       prevChords.length > 0 ? prevChords : [targetChord],
-      'C',
-      'major'
+      detectedRoot,
+      detectedMode
     );
 
     const alreadyPresent = choices.some((c) => c.chord.symbol === targetChord.symbol);
@@ -627,13 +654,34 @@ function getExtendedChoices(primaryChoices: QuizChoice[]): QuizChoice[] {
 }
 
 // Helper to build progression steps from loaded ChordDefinition[]
-function buildStepsFromChordDefinitions(chords: ChordDefinition[]): BoardStep[] {
-  return chords.map((targetChord, idx) => {
-    const prevChords = chords.slice(0, idx);
+function buildStepsFromChordDefinitions(
+  chords: ChordDefinition[],
+  keyRoot?: NoteName,
+  keyMode?: 'major' | 'minor'
+): BoardStep[] {
+  let detectedRoot: NoteName = keyRoot || 'C';
+  let detectedMode: 'major' | 'minor' = keyMode || 'major';
+  if (!keyRoot) {
+    const tonicChord = chords.find((c) => isTonicDegree(c.functionDegree));
+    if (tonicChord) {
+      detectedRoot = tonicChord.root;
+      detectedMode = isTonicDegreeMinor(tonicChord.functionDegree) || ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(tonicChord.quality) ? 'minor' : 'major';
+    } else if (chords[0]) {
+      detectedRoot = chords[0].root;
+      detectedMode = ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(chords[0].quality) ? 'minor' : 'major';
+    }
+  }
+
+  return chords.map((originalChord, idx) => {
+    const targetChord = validateOrCorrectChordDegree(originalChord, detectedRoot, detectedMode);
+    const prevChords = chords
+      .slice(0, idx)
+      .map((c) => validateOrCorrectChordDegree(c, detectedRoot, detectedMode));
+
     let choices = getSmartNextChordOptions(
       prevChords.length > 0 ? prevChords : [targetChord],
-      targetChord.root,
-      targetChord.quality === 'minor' ? 'minor' : 'major'
+      detectedRoot,
+      detectedMode
     );
 
     const alreadyPresent = choices.some((c) => c.chord.symbol === targetChord.symbol);
@@ -707,6 +755,7 @@ export function isStepCorrect(step: BoardStep): boolean {
 
 export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProps> = ({
   convention,
+  onSetConvention,
   onOpenTheory,
   loadedProgression,
   loadedKeyInfo,
@@ -718,7 +767,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   // Pre-generate steps (default 4 matching screenshot or loadedProgression if present)
   const [steps, setSteps] = useState<BoardStep[]>(() => {
     if (loadedProgression && loadedProgression.length > 0) {
-      return buildStepsFromChordDefinitions(loadedProgression);
+      return buildStepsFromChordDefinitions(loadedProgression, loadedKeyInfo?.root, loadedKeyInfo?.mode);
     }
     return createScreenshotStarterSteps();
   });
@@ -726,17 +775,22 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   // Flag to prevent tonality bar scroll when user explicitly requests randomizing key to focus on the first piano keyboard
   const isRandomizingKeyRef = useRef(false);
+  const isFirstMountRef = useRef(true);
 
   // When a new progression is loaded from Library or Sandbox, update the steps immediately
   // and smoothly scroll so that the tonality and progression bar is positioned at the top of the viewport
   useEffect(() => {
+    if (isFirstMountRef.current) {
+      isFirstMountRef.current = false;
+      return;
+    }
     if (loadedProgression && loadedProgression.length > 0) {
-      setSteps(buildStepsFromChordDefinitions(loadedProgression));
+      setSteps(buildStepsFromChordDefinitions(loadedProgression, loadedKeyInfo?.root, loadedKeyInfo?.mode));
       if (!isRandomizingKeyRef.current) {
         scrollToFirstPianoKeyboard();
       }
     }
-  }, [loadedProgression]);
+  }, [loadedProgression, loadedKeyInfo]);
 
   // Report workshop step results to parent so that ProgressionLibrary can show green/red states
   useEffect(() => {
@@ -845,6 +899,9 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     });
   };
 
+  // User request: Collapsible options menu for all secondary controls
+  const [isOptionsOpen, setIsOptionsOpen] = useState<boolean>(false);
+
   // User request: Pin tonality & progression bar right below navigation tabs
   const [isTonalityBarPinned, setIsTonalityBarPinned] = useState<boolean>(() => {
     try {
@@ -885,28 +942,14 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   // This guarantees the main bar ALWAYS matches the actual chords on the piano keyboards!
   const displayedTonality = useMemo(() => {
     // 1. Look for a tonic step (degree I / i) among the current steps
-    const tonicStep = steps.find((s) => {
-      const d = s.baseChord.functionDegree?.trim() || '';
-      return (
-        d === 'I' ||
-        d === 'i' ||
-        d.startsWith('I ') ||
-        d.startsWith('i ') ||
-        d.startsWith('I(') ||
-        d.startsWith('i(') ||
-        d.startsWith('Imaj') ||
-        d.startsWith('I7') ||
-        d.startsWith('i7')
-      ) && !d.startsWith('IV') && !d.startsWith('iv');
-    });
+    const tonicStep = steps.find((s) => isTonicDegree(s.baseChord.functionDegree));
 
     let root: NoteName = 'C';
     let mode: 'major' | 'minor' = 'major';
 
     if (tonicStep) {
       root = tonicStep.baseChord.root;
-      const d = tonicStep.baseChord.functionDegree?.trim() || '';
-      mode = (d === 'i' || d.startsWith('i') || tonicStep.baseChord.quality === 'minor' || tonicStep.baseChord.quality === 'min7')
+      mode = (isTonicDegreeMinor(tonicStep.baseChord.functionDegree) || ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(tonicStep.baseChord.quality))
         ? 'minor'
         : 'major';
     } else if (loadedKeyInfo?.root) {
@@ -914,7 +957,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       mode = loadedKeyInfo.mode || 'major';
     } else if (steps[0]) {
       root = steps[0].baseChord.root;
-      mode = steps[0].baseChord.quality === 'minor' ? 'minor' : 'major';
+      mode = ['minor', 'min7', 'min9', 'minSixNine', 'minor6', 'm7b5'].includes(steps[0].baseChord.quality) ? 'minor' : 'major';
     }
 
     const rootLabel = getNoteLabel(root, convention);
@@ -943,6 +986,20 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       return next;
     });
   };
+
+  // User Request: Powrót do trybu quizu bez wczytanego wzorca
+  const hasLoadedPattern = Boolean(
+    (loadedProgression && loadedProgression.length > 0) ||
+    (loadedKeyInfo && (loadedKeyInfo.progId || loadedKeyInfo.progName))
+  );
+
+  const handleReturnToQuizMode = useCallback(() => {
+    if (onClearLoadedProgression) {
+      onClearLoadedProgression();
+    }
+    setSteps(createScreenshotStarterSteps());
+    scrollToFirstPianoKeyboard();
+  }, [onClearLoadedProgression]);
 
   // Synchronized keyboard scrolling state and registry across ALL levels
   const keyboardContainersRef = useRef<Map<string, HTMLDivElement>>(new Map());
@@ -1167,7 +1224,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
   const handleAddStep = () => {
     setSteps((prev) => {
       const prevChords = prev.map((s) => s.selectedChoice?.chord || s.baseChord);
-      const nextChoices = getSmartNextChordOptions(prevChords, 'C', 'major');
+      const nextChoices = getSmartNextChordOptions(prevChords, displayedTonality.root, displayedTonality.mode);
       const { shuffledChoices, themeMap } = shuffleAndColorChoices(nextChoices);
 
       const newStep: BoardStep = {
@@ -1255,6 +1312,9 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   // Apply Progression Presets
   const handleApplyPreset = (presetType: '4_screen' | '6_ballad' | '8_pachelbel' | '8_jazz' | '12_blues') => {
+    if (onClearLoadedProgression) {
+      onClearLoadedProgression();
+    }
     if (presetType === '4_screen') {
       setSteps(createScreenshotStarterSteps());
       return;
@@ -1325,8 +1385,8 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   // User Request: Generate on-the-fly rich progressions with extended chords (6, sus2, sus4, aug, dim, add9)
   const handleQuickGenerateExtended = () => {
-    const keyRoot = loadedKeyInfo?.root || 'C';
-    const mode = loadedKeyInfo?.mode || 'major';
+    const keyRoot = displayedTonality.root;
+    const mode = displayedTonality.mode;
     const hasCurrentSections = steps.some((s) => Boolean(s.section || s.baseChord.section));
     const targetLength = (hasCurrentSections ? 'song' : steps.length === 6 ? 6 : steps.length >= 8 ? 8 : 4) as 4 | 6 | 8 | 'song';
     const newProg = generateSmartProgression({
@@ -1337,7 +1397,8 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
     const parsedChords = newProg.steps.map((st) => {
       const parsed = parseChordSymbol(st.symbol);
-      const chord = createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      let chord = createChordDefinition(parsed.root, parsed.quality, st.degree, st.role);
+      chord = validateOrCorrectChordDegree(chord, keyRoot, mode);
       chord.section = st.section;
       return chord;
     });
@@ -1350,7 +1411,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     // User Request: Niech każde kliknięcie wstawienia do warsztatu wygrywanej progresji automatycznie zapisuje ją do wzorców na stałe
     saveCustomProgression(newProg);
 
-    setSteps(buildStepsFromChordDefinitions(parsedChords));
+    setSteps(buildStepsFromChordDefinitions(parsedChords, keyRoot, mode));
 
     if (onLoadProgression) {
       onLoadProgression(parsedChords, {
@@ -1384,12 +1445,13 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
       const parsed = parseChordSymbol(s.baseChord.symbol);
       const oldChordIdx = NOTE_NAMES.indexOf(parsed.root);
       const newChordRoot = NOTE_NAMES[(oldChordIdx + delta) % 12];
-      const chordDef = createChordDefinition(
+      let chordDef = createChordDefinition(
         newChordRoot,
         parsed.quality,
         s.baseChord.functionDegree,
         s.baseChord.description
       );
+      chordDef = validateOrCorrectChordDegree(chordDef, newRoot, currentMode);
       chordDef.section = s.section || s.baseChord.section;
       return chordDef;
     });
@@ -1408,7 +1470,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         { skipScrollToTonalityBar: true }
       );
     } else {
-      setSteps(buildStepsFromChordDefinitions(transposedChords));
+      setSteps(buildStepsFromChordDefinitions(transposedChords, newRoot, currentMode));
     }
 
     // Scroll cleanly to the first piano keyboard
@@ -1754,292 +1816,283 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   return (
     <div className="w-full max-w-md sm:max-w-lg mx-auto space-y-3.5">
-      {/* Top Header Controls Strip */}
-      <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2 px-2 pt-1 pb-2 border-b border-slate-800/80">
-        <div className="flex items-center gap-2">
-          <span className="w-3 h-3 rounded-full bg-amber-400"></span>
-          <h2 className="text-sm font-bold text-slate-200">
-            Harmonix · Plansza Progresji
-          </h2>
-        </div>
+      {/* 1. Belka z wyborem długości progresji & Przycisk Opcji */}
+      <div className="p-2.5 rounded-2xl bg-[#090d16] border border-slate-800/80 shadow-md space-y-2">
+        <div className="flex items-center justify-between gap-2">
+          {/* Progression length presets */}
+          <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-none min-w-0">
+            <span className="text-[11px] font-bold text-slate-300 flex items-center gap-1 shrink-0 mr-1">
+              <Layers className="w-3.5 h-3.5 text-amber-400" />
+              <span>Długość:</span>
+            </span>
 
-        <div className="flex items-center gap-2 flex-wrap">
-          {/* User Request: Prominent, highly accessible button to hide chord choices */}
-          <button
-            type="button"
-            onClick={() => {
-              setHideChordChoices((prev) => !prev);
-              setPeekedStepIndices(new Set());
-            }}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md active:scale-95 border ${
-              hideChordChoices
-                ? 'bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/50 shadow-amber-400/20 font-black'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-slate-600'
-            }`}
-            title="Przełącz widoczność podpowiedzi (quiz ze słuchu na klawiaturze)"
-          >
-            {hideChordChoices ? (
-              <>
-                <EyeOff className="w-4 h-4 stroke-[2.5]" />
-                <span>Bez podpowiedzi (Wł.)</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-4 h-4 text-amber-400 stroke-[2.5]" />
-                <span>Schowaj podpowiedzi</span>
-              </>
-            )}
-          </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('4_screen')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
+                steps.length === 4
+                  ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              4 akordy
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('6_ballad')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
+                steps.length === 6
+                  ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              6 akordów
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('8_pachelbel')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
+                steps.length === 8
+                  ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              8 akordów
+            </button>
+            <button
+              type="button"
+              onClick={() => handleApplyPreset('12_blues')}
+              className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
+                steps.length === 12
+                  ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
+                  : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
+              }`}
+            >
+              12 blues
+            </button>
 
-          <button
-            type="button"
-            onClick={handlePlayEntireProgression}
-            disabled={isPlayingAll}
-            className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-md ${
-              isPlayingAll
-                ? 'bg-amber-400 text-slate-950'
-                : 'bg-emerald-500 hover:bg-emerald-400 text-slate-950 active:scale-95'
-            }`}
-          >
-            {isPlayingAll ? (
-              <>
-                <Square className="w-3 h-3 fill-current animate-pulse" />
-                <span>Odtwarzanie...</span>
-              </>
-            ) : (
-              <>
-                <Play className="w-3 h-3 fill-current" />
-                <span>Odtwórz całość ({steps.filter((s) => s.selectedChoice).length})</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={onOpenTheory}
-            className="p-1.5 text-slate-400 hover:text-amber-400 hover:bg-slate-800 rounded-lg transition-colors cursor-pointer"
-            title="Teoria Muzyki"
-          >
-            <HelpCircle className="w-4 h-4" />
-          </button>
-        </div>
-      </div>
-
-      {/* Progression Length & Quick Presets Selector Bar */}
-      <div className="p-2.5 rounded-2xl bg-[#090d16] border border-slate-800/80 space-y-2">
-        <div className="flex items-center justify-between text-[11px] text-slate-400">
-          <span className="font-semibold text-slate-200 flex items-center gap-1.5">
-            <Layers className="w-3.5 h-3.5 text-amber-400" />
-            Długość progresji: <strong className="text-amber-400">{steps.length} {steps.length === 4 ? 'akordy' : 'akordów'}</strong>
-          </span>
-          <span className="text-[10px] text-emerald-400 font-medium flex items-center gap-1 bg-emerald-500/10 px-2 py-0.5 rounded-full border border-emerald-500/20">
-            <Link className="w-3 h-3 stroke-[2.5]" />
-            Klawiatury w 100% zsynchronizowane
-          </span>
-        </div>
-
-        <div className="flex items-center gap-1.5 overflow-x-auto pb-0.5 scrollbar-thin scrollbar-thumb-slate-800">
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('4_screen')}
-            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
-              steps.length === 4
-                ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
-            }`}
-          >
-            4 Akordy (Klasyk)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('6_ballad')}
-            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
-              steps.length === 6
-                ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
-            }`}
-          >
-            6 Akordów (Ballada)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('8_pachelbel')}
-            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
-              steps.length === 8
-                ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
-            }`}
-          >
-            8 Akordów (Pachelbel)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('8_jazz')}
-            className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 bg-slate-800/90 hover:bg-slate-700 text-slate-300"
-          >
-            8 Akordów (Jazz Kadencja)
-          </button>
-          <button
-            type="button"
-            onClick={() => handleApplyPreset('12_blues')}
-            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 ${
-              steps.length === 12
-                ? 'bg-amber-400 text-slate-950 shadow-md scale-105'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300'
-            }`}
-          >
-            12 Akordów (Blues)
-          </button>
-
-          {/* User Request: Generator w locie z rozbudowanymi akordami (6, sus, aug, dim, add9) */}
-          <button
-            type="button"
-            onClick={handleQuickGenerateExtended}
-            className="px-2.5 py-1 text-[11px] font-black rounded-xl cursor-pointer transition-all shrink-0 bg-gradient-to-r from-amber-400 via-amber-300 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 flex items-center gap-1.5 shadow-md active:scale-95"
-            title="Wygeneruj w locie nową progresję z rozbudowanymi akordami (sus2, sus4, 6, m6, aug, dim, add9)"
-          >
-            <Wand2 className="w-3.5 h-3.5 stroke-[2.5]" />
-            <span>Generator w locie</span>
-          </button>
-
-          <button
-            type="button"
-            onClick={handleAddStep}
-            className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 active:scale-95"
-            title="Dodaj kolejny krok do progresji"
-          >
-            <Plus className="w-3 h-3 stroke-[3]" />
-            <span>+ Dodaj krok</span>
-          </button>
-
-          <div className="h-4 w-px bg-slate-800 shrink-0 mx-0.5" />
-
-          {/* User Request 8: Shuffle all choices order and random colors */}
-          <button
-            type="button"
-            onClick={handleShuffleAllChoices}
-            className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 flex items-center gap-1 active:scale-95"
-            title="Przetasuj losowo układ i kolory wszystkich przycisków akordów"
-          >
-            <Shuffle className="w-3 h-3" />
-            <span>Losowa kolejność</span>
-          </button>
-
-          {/* User Request 1: Hide chord choice rows to leave only keyboards */}
-          <button
-            type="button"
-            onClick={() => {
-              setHideChordChoices((prev) => !prev);
-              setPeekedStepIndices(new Set());
-            }}
-            className={`px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 flex items-center gap-1.5 shadow-sm active:scale-95 ${
-              hideChordChoices
-                ? 'bg-amber-400 text-slate-950 font-black ring-2 ring-amber-300 shadow-amber-400/20'
-                : 'bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700/60'
-            }`}
-            title={
-              hideChordChoices
-                ? 'Pokaż wiersze z akordami (podpowiedzi)'
-                : 'Schowaj wiersze z akordami – zostaw tylko klawiatury do wyboru ze słuchu bez podpowiedzi'
-            }
-          >
-            {hideChordChoices ? (
-              <>
-                <Eye className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Pokaż podpowiedzi</span>
-              </>
-            ) : (
-              <>
-                <EyeOff className="w-3.5 h-3.5 stroke-[2.5]" />
-                <span>Schowaj podpowiedzi (Tylko klawiatury)</span>
-              </>
-            )}
-          </button>
-
-          <button
-            type="button"
-            onClick={handleResetAllChoices}
-            className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 bg-slate-800/90 hover:bg-slate-700 text-slate-300 border border-slate-700/60 flex items-center gap-1 active:scale-95"
-            title="Rozpocznij test od zera (wyczyść wybrane akordy)"
-          >
-            <RotateCcw className="w-3 h-3" />
-            <span>Nowy test</span>
-          </button>
-        </div>
-      </div>
-
-      {/* Prominent Learning Mode Switcher Bar - Very accessible & visible */}
-      <div className="p-3 rounded-2xl bg-gradient-to-r from-slate-900 via-[#0d1424] to-slate-900 border border-slate-800/90 flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-xl">
-        <div className="flex items-center gap-3">
-          <div
-            className={`w-10 h-10 rounded-xl flex items-center justify-center shrink-0 shadow-md ${
-              hideChordChoices
-                ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/20'
-                : 'bg-sky-500/20 text-sky-400 border border-sky-500/30'
-            }`}
-          >
-            {hideChordChoices ? (
-              <EyeOff className="w-5 h-5 stroke-[2.5]" />
-            ) : (
-              <Eye className="w-5 h-5 stroke-[2.5]" />
+            {hasLoadedPattern && (
+              <button
+                type="button"
+                onClick={handleReturnToQuizMode}
+                className="px-2.5 py-1 text-[11px] font-bold rounded-xl cursor-pointer transition-all shrink-0 bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 hover:text-emerald-100 border border-emerald-500/40 flex items-center gap-1 shadow-sm active:scale-95 ml-1"
+                title="Wróć do domyślnego trybu quizu bez wczytanego wzorca"
+              >
+                <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
+                <span>Tryb quizu</span>
+              </button>
             )}
           </div>
-          <div>
-            <div className="text-xs font-bold text-slate-200 flex items-center gap-2">
-              <span>Tryb quizu:</span>
-              <span
-                className={`text-[10px] px-2.5 py-0.5 rounded-full font-black uppercase tracking-wider ${
+
+          {/* User Request: Single button that expands all extra controls */}
+          <button
+            type="button"
+            onClick={() => setIsOptionsOpen((prev) => !prev)}
+            className={`px-3 py-1.5 text-xs font-bold rounded-xl cursor-pointer transition-all shrink-0 flex items-center gap-1.5 shadow-md active:scale-95 border ${
+              isOptionsOpen
+                ? 'bg-amber-400 text-slate-950 border-amber-300 ring-2 ring-amber-400/40 font-black'
+                : 'bg-slate-800 hover:bg-slate-700 text-slate-200 border-slate-700 hover:border-slate-600'
+            }`}
+            title="Otwórz panel dodatkowych opcji (podpowiedzi, odtwarzanie, zapis, generator, teoria)"
+          >
+            <SlidersHorizontal className="w-3.5 h-3.5" />
+            <span>Opcje</span>
+            {isOptionsOpen ? (
+              <ChevronUp className="w-3.5 h-3.5 stroke-[2.5]" />
+            ) : (
+              <ChevronDown className="w-3.5 h-3.5 stroke-[2.5]" />
+            )}
+          </button>
+        </div>
+
+        {/* Collapsible Options Drawer */}
+        {isOptionsOpen && (
+          <div className="pt-2.5 border-t border-slate-800/90 space-y-2.5 animate-in fade-in slide-in-from-top-2 duration-150">
+            {/* Przełącznik notacji (z dawnej belki Warsztat Harmoniczny) */}
+            <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <div className="w-7 h-7 rounded-lg bg-amber-400/20 text-amber-400 flex items-center justify-center shrink-0 font-bold text-xs">
+                  {convention === 'polish' ? 'H' : 'B'}
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-200">
+                    Notacja dźwięków: {convention === 'polish' ? 'Polska (C – H)' : 'Międzynarodowa (C – B)'}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    Wybierz tradycyjny polski zapis dźwięków (z nutą H) lub międzynarodowy (B)
+                  </div>
+                </div>
+              </div>
+
+              {onSetConvention && (
+                <div className="flex items-center bg-slate-950 p-1 rounded-xl border border-slate-800 shrink-0 self-start sm:self-auto text-xs">
+                  <button
+                    type="button"
+                    onClick={() => onSetConvention('polish')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      convention === 'polish'
+                        ? 'bg-amber-400 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Polskie (C - H)
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => onSetConvention('international')}
+                    className={`px-3 py-1.5 rounded-lg font-bold transition-all cursor-pointer ${
+                      convention === 'international'
+                        ? 'bg-amber-400 text-slate-950 shadow-sm'
+                        : 'text-slate-400 hover:text-slate-200'
+                    }`}
+                  >
+                    Intl (C - B)
+                  </button>
+                </div>
+              )}
+            </div>
+
+            {/* Tryb podpowiedzi / quizu */}
+            <div className="bg-slate-900/90 rounded-xl p-2.5 border border-slate-800 flex flex-col sm:flex-row sm:items-center justify-between gap-2.5">
+              <div className="flex items-center gap-2">
+                <div
+                  className={`w-7 h-7 rounded-lg flex items-center justify-center shrink-0 ${
+                    hideChordChoices ? 'bg-amber-400 text-slate-950' : 'bg-sky-500/20 text-sky-400'
+                  }`}
+                >
+                  {hideChordChoices ? (
+                    <EyeOff className="w-4 h-4 stroke-[2.5]" />
+                  ) : (
+                    <Eye className="w-4 h-4 stroke-[2.5]" />
+                  )}
+                </div>
+                <div>
+                  <div className="text-xs font-bold text-slate-200">
+                    {hideChordChoices ? 'Tryb bez podpowiedzi (Tylko klawiatury)' : 'Tryb z kafelkami podpowiedzi'}
+                  </div>
+                  <div className="text-[10px] text-slate-400">
+                    {hideChordChoices
+                      ? 'Wiersze z akordami ukryte – ćwiczysz rozpoznawanie i grę bezpośrednio na klawiaturze'
+                      : 'Widoczne kafelki akordów z nazwami stopni i rolą harmoniczną'}
+                  </div>
+                </div>
+              </div>
+
+              <button
+                type="button"
+                onClick={() => handleToggleHideChordChoices()}
+                className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center gap-1.5 shrink-0 active:scale-95 border ${
                   hideChordChoices
-                    ? 'bg-amber-400 text-slate-950 shadow-sm'
-                    : 'bg-slate-800 text-slate-200 border border-slate-700'
+                    ? 'bg-amber-400 text-slate-950 border-amber-300 font-black shadow-sm'
+                    : 'bg-slate-800 text-slate-200 border-slate-700 hover:bg-slate-750'
                 }`}
               >
-                {hideChordChoices ? 'Tylko klawiatury (Bez podpowiedzi)' : 'Kafelki z akordami (Podpowiedzi)'}
-              </span>
+                {hideChordChoices ? (
+                  <>
+                    <Eye className="w-3.5 h-3.5" />
+                    <span>Pokaż podpowiedzi</span>
+                  </>
+                ) : (
+                  <>
+                    <EyeOff className="w-3.5 h-3.5" />
+                    <span>Schowaj podpowiedzi</span>
+                  </>
+                )}
+              </button>
             </div>
-            <p className="text-[11px] text-slate-400 mt-0.5">
-              {hideChordChoices
-                ? 'Wiersze z nazwami akordów są ukryte. Zagraj kolejny akord na klawiaturze – system natychmiast go oceni i zaliczy!'
-                : 'Wybierz akord klikając kolorowy kafelek LUB grając go na klawiaturze (oba sposoby są zaliczane).'}
-            </p>
-          </div>
-        </div>
 
-        <div className="flex items-center gap-1.5 bg-slate-950/80 p-1 rounded-xl border border-slate-800 shrink-0 self-start sm:self-auto">
-          <button
-            type="button"
-            onClick={() => {
-              setHideChordChoices(false);
-              setPeekedStepIndices(new Set());
-            }}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center gap-1.5 ${
-              !hideChordChoices
-                ? 'bg-sky-500 text-slate-950 font-black shadow-md'
-                : 'text-slate-400 hover:text-slate-200'
-            }`}
-          >
-            <Eye className="w-3.5 h-3.5" />
-            <span>Z podpowiedziami</span>
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              setHideChordChoices(true);
-              setPeekedStepIndices(new Set());
-            }}
-            className={`px-3 py-1.5 text-xs font-bold rounded-lg cursor-pointer transition-all flex items-center gap-1.5 ${
-              hideChordChoices
-                ? 'bg-amber-400 text-slate-950 font-black shadow-md'
-                : 'text-amber-400/90 hover:text-amber-300'
-            }`}
-          >
-            <EyeOff className="w-3.5 h-3.5" />
-            <span>Bez podpowiedzi</span>
-          </button>
-        </div>
+            {/* Odtwarzanie & Teoria */}
+            <div className="grid grid-cols-2 gap-2">
+              {/* Odtwórz całość */}
+              <button
+                type="button"
+                onClick={handlePlayEntireProgression}
+                disabled={isPlayingAll}
+                className={`flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 border ${
+                  isPlayingAll
+                    ? 'bg-amber-400 text-slate-950 border-amber-300'
+                    : 'bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border-emerald-500/40'
+                }`}
+              >
+                {isPlayingAll ? (
+                  <>
+                    <Square className="w-3.5 h-3.5 fill-current animate-pulse" />
+                    <span>Odtwarzanie...</span>
+                  </>
+                ) : (
+                  <>
+                    <Play className="w-3.5 h-3.5 fill-current" />
+                    <span>Odtwórz całość ({steps.filter((s) => s.selectedChoice).length})</span>
+                  </>
+                )}
+              </button>
+
+              {/* Teoria Muzyki */}
+              <button
+                type="button"
+                onClick={onOpenTheory}
+                className="flex items-center justify-center gap-1.5 px-3 py-2 text-xs font-bold rounded-xl transition-all cursor-pointer shadow-sm active:scale-95 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-700"
+              >
+                <HelpCircle className="w-3.5 h-3.5 text-amber-400" />
+                <span>Teoria Muzyki</span>
+              </button>
+            </div>
+
+            {/* Modyfikacja kroków i edycja */}
+            <div className="flex items-center gap-2 flex-wrap pt-1 border-t border-slate-800/60">
+              {hasLoadedPattern && (
+                <button
+                  type="button"
+                  onClick={handleReturnToQuizMode}
+                  className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer transition-all bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 shadow-sm active:scale-95"
+                  title="Wróć do klasycznego trybu quizu szachownicy bez wczytanego wzorca"
+                >
+                  <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
+                  <span>Wróć do trybu quizu bez wzorca</span>
+                </button>
+              )}
+
+              <button
+                type="button"
+                onClick={handleQuickGenerateExtended}
+                className="px-2.5 py-1.5 text-[11px] font-black rounded-lg cursor-pointer transition-all bg-gradient-to-r from-amber-400 to-amber-500 hover:from-amber-300 hover:to-amber-400 text-slate-950 flex items-center gap-1 shadow-sm active:scale-95"
+              >
+                <Wand2 className="w-3.5 h-3.5 stroke-[2.5]" />
+                <span>Generator w locie</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleAddStep}
+                className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer transition-all bg-emerald-500/20 hover:bg-emerald-500/30 text-emerald-300 border border-emerald-500/40 flex items-center gap-1 active:scale-95"
+              >
+                <Plus className="w-3 h-3 stroke-[3]" />
+                <span>+ Dodaj krok</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleShuffleAllChoices}
+                className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer transition-all bg-purple-500/20 hover:bg-purple-500/30 text-purple-300 border border-purple-500/40 flex items-center gap-1 active:scale-95"
+              >
+                <Shuffle className="w-3 h-3" />
+                <span>Przetasuj kafelki</span>
+              </button>
+
+              <button
+                type="button"
+                onClick={handleResetAllChoices}
+                className="px-2.5 py-1.5 text-[11px] font-bold rounded-lg cursor-pointer transition-all bg-slate-800 hover:bg-slate-700 text-slate-300 border border-slate-700 flex items-center gap-1 active:scale-95 ml-auto"
+              >
+                <RotateCcw className="w-3 h-3" />
+                <span>Wyczyść odpowiedzi</span>
+              </button>
+            </div>
+          </div>
+        )}
       </div>
 
-      {/* Prominent Active Tonality & Progression Banner - exactly 2 clean rows */}
+      {/* 2. Główna belka z tonacją (wszystkie pierwotne opcje belki zachowane) */}
       <div
         id="workshop-tonality-progression-bar"
         data-tonality-bar="true"
@@ -2055,14 +2108,24 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
             : 'bg-gradient-to-r from-amber-500/15 via-slate-900 to-slate-900 border border-amber-500/35 shadow-lg'
         }`}
       >
-        {/* ROW 1: All action buttons in ONE single clean row */}
+        {/* ROW 1: Pełen zestaw przycisków na głównej belce */}
         <div className="flex items-center gap-1.5 flex-wrap">
           <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-amber-400 text-slate-950 font-black text-xs sm:text-sm shadow-md ring-2 ring-amber-400/30 shrink-0">
             <Compass className="w-3.5 h-3.5 stroke-[2.5]" />
             <span>Tonacja: {displayedTonality.keyName}</span>
           </div>
 
-          {/* User Request 2: Button 'przypnij / odepnij' directly next to the tonality label */}
+          {/* Wskaźnik wczytanego wzorca */}
+          {hasLoadedPattern && (
+            <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-xl bg-sky-500/20 border border-sky-400/40 text-sky-200 text-[11px] font-bold shrink-0">
+              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <span className="max-w-[130px] sm:max-w-[200px] truncate" title={loadedKeyInfo?.progName || 'Wczytany wzorzec'}>
+                Wzorzec: {loadedKeyInfo?.progName || 'Wczytany'}
+              </span>
+            </div>
+          )}
+
+          {/* Przypnij / Odepnij */}
           <button
             type="button"
             onClick={handleTogglePinTonalityBar}
@@ -2071,7 +2134,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
                 ? 'bg-amber-400 text-slate-950 ring-2 ring-amber-300 shadow-amber-400/25 font-black'
                 : 'bg-slate-800/90 hover:bg-slate-700 text-slate-200 border border-slate-700/80'
             }`}
-            title={isTonalityBarPinned ? 'Odepnij belkę tonacji (drugie naciśnięcie odpina)' : 'Przypnij belkę tonacji pod kartami nawigacji podczas scrollowania'}
+            title={isTonalityBarPinned ? 'Odepnij belkę tonacji' : 'Przypnij belkę tonacji pod nawigacją podczas scrollowania'}
           >
             {isTonalityBarPinned ? (
               <>
@@ -2086,7 +2149,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
             )}
           </button>
 
-          {/* User Request: Button to toggle Roman numerals to concrete chords and back */}
+          {/* Pokaż akordy / Pokaż rzymskie */}
           <button
             type="button"
             onClick={handleToggleProgressionNotation}
@@ -2107,7 +2170,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
             </span>
           </button>
 
-          {/* Quick Randomize / Transpose Tonality button in workshop */}
+          {/* Losuj tonację */}
           <button
             type="button"
             onClick={handleRandomizeWorkshopKey}
@@ -2118,11 +2181,24 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
             <span>Losuj tonację</span>
           </button>
 
-          {/* User Request 3: Przycisk Reset w jednym rzędzie z pozostałymi przyciskami */}
-          {loadedProgression && onClearLoadedProgression && (
+          {/* Wróć do trybu quizu bez wzorca */}
+          {hasLoadedPattern && (
             <button
               type="button"
-              onClick={onClearLoadedProgression}
+              onClick={handleReturnToQuizMode}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 bg-emerald-500/20 hover:bg-emerald-400 text-emerald-300 hover:text-slate-950 border border-emerald-500/40"
+              title="Opuść wczytany wzorzec i wróć do trybu quizu bez wzorca (domyślna progresja warsztatu)"
+            >
+              <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
+              <span>Wróć do quizu</span>
+            </button>
+          )}
+
+          {/* Reset progresji (przywróć domyślne 4 akordy) */}
+          {hasLoadedPattern && onClearLoadedProgression && (
+            <button
+              type="button"
+              onClick={handleReturnToQuizMode}
               className="px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 text-slate-300 hover:text-rose-200 bg-rose-500/15 hover:bg-rose-500/25 border border-rose-500/30"
               title="Przywróć domyślne 4 akordy"
             >
@@ -2132,7 +2208,7 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
           )}
         </div>
 
-        {/* ROW 2: Complete Progression Display with individual chord highlight */}
+        {/* ROW 2: Zapis progresji ze statusem */}
         <div className="flex items-start gap-1.5 text-xs min-w-0">
           <span className="text-slate-400 text-[11px] shrink-0 font-semibold pt-0.5">
             {progressionNotation === 'chords' ? 'Akordy:' : 'Progresja:'}
@@ -2497,25 +2573,35 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
     {/* Dynamic step addition or Pattern Navigation buttons */}
     <div className="pt-2 flex flex-col gap-2">
-      {Boolean(loadedProgression && loadedProgression.length > 0) || Boolean(loadedKeyInfo && (loadedKeyInfo.progId || loadedKeyInfo.progName)) ? (
-        <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      {hasLoadedPattern ? (
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
           <button
             type="button"
             onClick={handleRandomizeWorkshopKey}
-            className="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/20 to-amber-500/10 hover:from-amber-500/30 hover:via-amber-400/30 hover:to-amber-500/20 border-2 border-amber-500/40 hover:border-amber-400 text-amber-200 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
+            className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-amber-500/20 via-amber-400/20 to-amber-500/10 hover:from-amber-500/30 hover:via-amber-400/30 hover:to-amber-500/20 border-2 border-amber-500/40 hover:border-amber-400 text-amber-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
             title="Wylosuj nową tonację dla tego wzorca i przejdź do pierwszej klawiatury"
           >
-            <Shuffle className="w-5 h-5 text-amber-400 stroke-[2.5]" />
+            <Shuffle className="w-4 h-4 text-amber-400 stroke-[2.5]" />
             <span>🎲 Losuj nową tonację</span>
           </button>
 
           <button
             type="button"
+            onClick={handleReturnToQuizMode}
+            className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-emerald-500/20 via-emerald-400/20 to-emerald-500/10 hover:from-emerald-500/30 hover:via-emerald-400/30 hover:to-emerald-500/20 border-2 border-emerald-500/40 hover:border-emerald-400 text-emerald-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
+            title="Opuść wczytany wzorzec i wróć do trybu quizu bez wzorca"
+          >
+            <GraduationCap className="w-4 h-4 text-emerald-400 stroke-[2.5]" />
+            <span>🎯 Wróć do trybu quizu</span>
+          </button>
+
+          <button
+            type="button"
             onClick={onNavigateToLibrary}
-            className="py-3.5 px-4 rounded-2xl bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-sky-500/10 hover:from-sky-500/30 hover:via-purple-500/30 hover:to-sky-500/20 border-2 border-sky-500/40 hover:border-sky-400 text-sky-200 hover:text-white font-bold text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
+            className="py-3.5 px-3 rounded-2xl bg-gradient-to-r from-sky-500/20 via-purple-500/20 to-sky-500/10 hover:from-sky-500/30 hover:via-purple-500/30 hover:to-sky-500/20 border-2 border-sky-500/40 hover:border-sky-400 text-sky-200 hover:text-white font-bold text-xs sm:text-sm flex items-center justify-center gap-2 transition-all cursor-pointer shadow-lg active:scale-[0.99]"
             title="Przejdź do biblioteki wzorców"
           >
-            <Layers className="w-5 h-5 text-sky-400 stroke-[2.5]" />
+            <Layers className="w-4 h-4 text-sky-400 stroke-[2.5]" />
             <span>📚 Przejdź do wzorców</span>
           </button>
         </div>
