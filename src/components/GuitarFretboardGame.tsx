@@ -713,16 +713,25 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
         )}
       </div>
 
-      {/* Main Guitar Board Container (Normal flow, allows full page scrolling) */}
-      <div className="bg-[#120c08] border-4 border-[#2b1810] rounded-3xl p-3 sm:p-5 shadow-2xl relative select-none">
-        {/* Rosewood wood grain texture overlay */}
+      {/* Main Guitar Board Container - Styled as an Authentic Acoustic Sunburst Guitar Body & Stage */}
+      <div
+        className="relative select-none rounded-[2.5rem] p-3 sm:p-6 shadow-[0_25px_60px_-15px_rgba(0,0,0,0.95)] overflow-hidden border-4 border-[#3a1b0d]"
+        style={{
+          background: 'radial-gradient(ellipse at 50% 30%, #4a1e0b 0%, #2b1005 45%, #150702 75%, #070301 100%)',
+        }}
+      >
+        {/* Guitar Sunburst Spruce & Mahogany Woodgrain Overlay */}
         <div
-          className="absolute inset-0 opacity-40 pointer-events-none rounded-2xl"
+          className="absolute inset-0 opacity-25 pointer-events-none"
           style={{
             backgroundImage:
-              'radial-gradient(ellipse at center, rgba(120,53,15,0.2) 0%, rgba(20,10,5,0.7) 100%), repeating-linear-gradient(90deg, transparent, transparent 15px, rgba(0,0,0,0.15) 15px, rgba(0,0,0,0.15) 30px)',
+              'radial-gradient(ellipse at 50% 30%, rgba(245,158,11,0.2) 0%, rgba(120,53,15,0.2) 40%, rgba(10,5,2,0.8) 100%), repeating-linear-gradient(90deg, rgba(251,191,36,0.015) 0px, rgba(251,191,36,0.015) 2px, transparent 2px, transparent 6px)',
           }}
         />
+
+        {/* Acoustic Guitar Waist & Body Purfling Lines (Ożyłkowanie pudła gitary) */}
+        <div className="absolute inset-2 sm:inset-3 pointer-events-none rounded-[2rem] border border-amber-600/30 shadow-[inset_0_0_80px_rgba(0,0,0,0.85)]" />
+        <div className="absolute inset-3.5 sm:inset-4 pointer-events-none rounded-[1.8rem] border border-dashed border-amber-800/25" />
 
         {/* User Request: IN-VIEW TARGET CHORD CORNER BANNER (Nie trzeba scrollować!) */}
         <div className="relative z-20 mb-3 p-3 rounded-2xl bg-gradient-to-r from-[#170e08] via-[#0d0705] to-[#170e08] border-2 border-amber-500/50 shadow-xl flex items-center justify-between gap-3 flex-wrap">
@@ -810,9 +819,64 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
           {orientation === 'vertical' ? (
             /* VERTICAL NECK (Natural for holding with left hand!) */
             <div className="relative z-10 w-full overflow-x-auto pb-2">
+              {/* AUTHENTIC GUITAR HEADSTOCK (Główka gitary z kluczami) */}
+              <div className="relative w-full max-w-[320px] sm:max-w-lg mx-auto mb-[-2px] z-10">
+                <div className="relative bg-gradient-to-b from-[#160b06] via-[#241108] to-[#140803] border-2 border-b-0 border-[#3d1f11] rounded-t-3xl pt-4 sm:pt-5 pb-3 px-3 sm:px-6 shadow-2xl overflow-hidden">
+                  {/* Headstock mahogany wood grain overlay */}
+                  <div
+                    className="absolute inset-0 opacity-25 pointer-events-none"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(45deg, transparent, transparent 10px, rgba(0,0,0,0.4) 10px, rgba(0,0,0,0.4) 20px)',
+                    }}
+                  />
+
+                  {/* Truss Rod Cover (Płytka pręta regulacyjnego) */}
+                  <div className="absolute bottom-1 left-1/2 -translate-x-1/2 w-4 sm:w-5 h-6 bg-[#0a0503] rounded-t-sm border border-slate-700 shadow-md flex flex-col items-center justify-between py-0.5 z-10">
+                    <div className="w-1 h-1 rounded-full bg-slate-400" />
+                    <span className="text-[6px] font-black text-amber-400/80 leading-none">H</span>
+                    <div className="w-1 h-1 rounded-full bg-slate-400" />
+                  </div>
+
+                  {/* Golden Mother-of-Pearl Harmonix Headstock Inlay */}
+                  <div className="text-center relative z-10 mb-2">
+                    <span className="font-serif italic font-black text-xs sm:text-sm tracking-widest bg-gradient-to-r from-amber-200 via-amber-100 to-amber-300 bg-clip-text text-transparent drop-shadow-[0_2px_4px_rgba(0,0,0,0.9)]">
+                      HARMONIX
+                    </span>
+                    <div className="text-[7px] sm:text-[8px] font-sans font-bold tracking-widest text-amber-600/70 uppercase">
+                      Handcrafted Series
+                    </div>
+                  </div>
+
+                  {/* 6 Tuning Pegs (Klucze): 3 Left & 3 Right */}
+                  <div className="flex justify-between items-center relative z-10 px-0.5">
+                    {/* Left 3 Pegs (struny E6, A5, D4) */}
+                    <div className="flex gap-2 sm:gap-3 -ml-4 sm:-ml-5">
+                      {[0, 1, 2].map((i) => (
+                        <div key={`peg_l_${i}`} className="flex flex-col items-center">
+                          <div className="w-3.5 sm:w-4 h-5 sm:h-6 rounded-md bg-gradient-to-r from-[#d4af37] via-[#fef08a] to-[#b45309] shadow-md border border-[#78350f] transform rotate-[-12deg]" />
+                          <div className="w-1.5 h-2.5 sm:h-3 bg-gradient-to-r from-slate-400 via-slate-100 to-slate-400 shadow-inner" />
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Right 3 Pegs (struny G3, B2, e1) */}
+                    <div className="flex gap-2 sm:gap-3 -mr-4 sm:-mr-5">
+                      {[3, 4, 5].map((i) => (
+                        <div key={`peg_r_${i}`} className="flex flex-col items-center">
+                          <div className="w-3.5 sm:w-4 h-5 sm:h-6 rounded-md bg-gradient-to-r from-[#b45309] via-[#fef08a] to-[#d4af37] shadow-md border border-[#78350f] transform rotate-[12deg]" />
+                          <div className="w-1.5 h-2.5 sm:h-3 bg-gradient-to-r from-slate-400 via-slate-100 to-slate-400 shadow-inner" />
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+              </div>
+
+              {/* Fretboard with Ivoroid Bound Edges */}
               <div
                 ref={fretboardGridRef}
-                className="min-w-[320px] max-w-lg mx-auto flex flex-col bg-[#1f120c] rounded-2xl border-2 border-[#3d2315] shadow-inner select-none relative"
+                className="min-w-[320px] max-w-lg mx-auto flex flex-col bg-[#1a0f0a] border-l-4 border-r-4 border-[#e8ded0] border-t-0 border-b-2 border-b-[#3d1f11] shadow-[0_15px_35px_rgba(0,0,0,0.85)] select-none relative"
                 style={{ touchAction: 'none' }}
               >
                 {/* Floating Corner Chord Badge on the neck */}
@@ -822,8 +886,8 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
                   </span>
                 </div>
 
-                {/* String Nut Controls Row (Open O / Mute X) */}
-                <div className="grid grid-cols-6 border-b-4 border-[#e2d5c3] bg-[#0d0705] py-2 px-1 rounded-t-2xl">
+                {/* String Nut Controls Row (Open O / Mute X) - Aged Bone Nut */}
+                <div className="grid grid-cols-6 border-b-4 border-[#cfc0a6] bg-gradient-to-b from-[#f7f2ea] via-[#ede4d3] to-[#ded2bd] py-2 px-1 shadow-[0_4px_10px_rgba(0,0,0,0.6)]">
                   {orderedStrings.map((stringInfo) => {
                     const sIdx = stringInfo.index;
                     const currentFret = activeGrip[sIdx];
@@ -832,7 +896,7 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
 
                     return (
                       <div key={`nut_str_${sIdx}`} className="flex flex-col items-center justify-center">
-                        <span className="text-[10px] font-bold text-slate-400 mb-1 pointer-events-none">
+                        <span className="text-[10px] font-black text-amber-950 mb-1 pointer-events-none">
                           {stringInfo.name}
                         </span>
                         <button
@@ -885,9 +949,14 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
 
                       {/* Fret Marker Pearl Dot (Progi 3 i 5) */}
                       {hasDotMarker && (
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200/70 border border-slate-300 shadow-inner pointer-events-none flex items-center justify-center text-[9px] font-bold text-slate-600">
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 sm:w-5 h-4 sm:h-5 rounded-full bg-gradient-to-tr from-[#f8fafc] via-[#fef3c7] to-[#e2e8f0] border border-amber-300/60 shadow-[0_0_8px_rgba(254,243,199,0.4),inset_0_1px_2px_rgba(0,0,0,0.3)] pointer-events-none flex items-center justify-center text-[9px] font-black text-slate-700">
                           {fretNum}
                         </div>
+                      )}
+
+                      {/* Side position dot on the cream edge binding */}
+                      {hasDotMarker && (
+                        <div className="absolute -left-1.5 top-1/2 -translate-y-1/2 w-1.5 h-1.5 rounded-full bg-slate-900 border border-slate-600 pointer-events-none" />
                       )}
 
                       {/* Quick Interactive Barre Button + Fret Label on left side */}
@@ -1010,24 +1079,140 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
                   );
                 })}
               </div>
+
+              {/* GUITAR SOUNDBOARD & ROSETTE SOUNDHOLE (Pudło rezonansowe, Rozeta i Otwór) */}
+              <div className="relative min-w-[320px] max-w-lg mx-auto w-full pt-4 pb-6 px-3 sm:px-6 bg-gradient-to-b from-[#180b05] via-[#2a1308] to-[#120703] rounded-b-3xl border-2 border-t-0 border-[#3d1f11] overflow-hidden shadow-2xl">
+                {/* Sunburst soundboard wood grain */}
+                <div
+                  className="absolute inset-0 opacity-30 pointer-events-none"
+                  style={{
+                    backgroundImage:
+                      'radial-gradient(circle at 50% 35%, rgba(245, 158, 11, 0.28) 0%, rgba(120, 53, 15, 0.2) 50%, rgba(15, 6, 2, 0.95) 100%), repeating-linear-gradient(90deg, transparent, transparent 12px, rgba(0,0,0,0.18) 12px, rgba(0,0,0,0.18) 24px)',
+                  }}
+                />
+
+                {/* Soundhole with Concentric Rosette Rings */}
+                <div className="relative mx-auto w-44 h-44 sm:w-52 sm:h-52 rounded-full flex items-center justify-center my-2 shadow-[0_10px_35px_rgba(0,0,0,0.95)]">
+                  {/* Outer Rosette Ring (Herringbone & Pearl) */}
+                  <div className="absolute inset-0 rounded-full border-4 border-[#3e1f10] bg-gradient-to-br from-[#c89868] via-[#e8d2b5] to-[#8c572b] p-1.5 shadow-md">
+                    <div className="w-full h-full rounded-full border-2 border-dashed border-amber-900/60 flex items-center justify-center p-1.5 bg-[#170a04]">
+                      {/* Inner Abalone Inlay Ring */}
+                      <div className="w-full h-full rounded-full border-2 border-[#e6dbc9] p-1 bg-gradient-to-tr from-[#3b82f6]/20 via-[#10b981]/25 to-[#f59e0b]/30">
+                        {/* Black Soundhole Cavity (Wnętrze pudła) */}
+                        <div className="w-full h-full rounded-full bg-gradient-to-b from-[#050201] to-[#0d0603] shadow-[inset_0_12px_30px_rgba(0,0,0,0.98)] flex flex-col items-center justify-center relative overflow-hidden border border-black">
+                          {/* Wooden Maker's Label visible inside soundhole */}
+                          <div className="w-24 sm:w-28 h-12 sm:h-14 bg-[#fbf5ea] text-[#3e271a] rounded p-1 shadow-inner border border-[#d6c4a8] flex flex-col items-center justify-center text-center rotate-[-3deg] opacity-80">
+                            <span className="font-serif italic font-black text-[8px] sm:text-[9px] tracking-wider text-[#78350f]">HARMONIX</span>
+                            <span className="text-[6px] font-sans font-bold text-slate-700">Model H-2026 Polish Edition</span>
+                            <span className="text-[5px] text-slate-500 font-mono">Handcrafted Soundboard</span>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Tortoiseshell Pickguard (Łezka / Maskownica) */}
+                  <div
+                    className="absolute -right-3 -bottom-3 sm:-right-4 sm:-bottom-4 w-24 sm:w-28 h-32 sm:h-36 rounded-br-[4rem] rounded-tl-[3rem] pointer-events-none shadow-xl border border-amber-900/50"
+                    style={{
+                      background:
+                        'radial-gradient(circle at 60% 40%, rgba(180, 83, 9, 0.85) 0%, rgba(120, 53, 15, 0.95) 45%, rgba(69, 26, 3, 0.98) 75%, rgba(20, 8, 3, 1) 100%)',
+                      boxShadow: 'inset 0 0 15px rgba(251, 191, 36, 0.15), 0 4px 15px rgba(0,0,0,0.7)',
+                    }}
+                  />
+
+                  {/* Acoustic Strings passing directly over Soundhole */}
+                  <div className="absolute inset-0 flex justify-around pointer-events-none px-4 sm:px-6">
+                    {orderedStrings.map((stringInfo) => (
+                      <div
+                        key={`soundhole_str_${stringInfo.index}`}
+                        className="h-full relative flex items-center justify-center"
+                      >
+                        <div
+                          className="h-full shadow-[0_2px_6px_rgba(0,0,0,0.9)] transition-all"
+                          style={{
+                            width: `${stringInfo.gaugeWidth}px`,
+                            backgroundColor: stringInfo.color,
+                            boxShadow: isStrumming
+                              ? '0 0 12px rgba(251, 191, 36, 0.95)'
+                              : '0 2px 4px rgba(0,0,0,0.9)',
+                          }}
+                        />
+                      </div>
+                    ))}
+                  </div>
+                </div>
+
+                {/* Rosewood Bridge with White Bone Saddle and Pearl Inlaid Pins */}
+                <div className="relative mx-auto w-48 sm:w-60 h-8 sm:h-9 bg-gradient-to-r from-[#170a04] via-[#2e1509] to-[#170a04] rounded-lg border border-[#4a220e] shadow-xl flex items-center justify-around px-3 sm:px-4 mt-2">
+                  <div className="absolute top-1 inset-x-6 sm:inset-x-8 h-1 sm:h-1.5 bg-[#f5efe6] rounded-full shadow-inner border border-[#d6c4a8]" />
+                  {orderedStrings.map((stringInfo) => (
+                    <div
+                      key={`bridge_pin_${stringInfo.index}`}
+                      className="w-3 h-3 sm:w-3.5 sm:h-3.5 rounded-full bg-[#f8fafc] border border-slate-400 shadow-md flex items-center justify-center relative mt-1.5"
+                    >
+                      <div className="w-1 h-1 sm:w-1.5 sm:h-1.5 rounded-full bg-[#1e293b]" />
+                    </div>
+                  ))}
+                </div>
+              </div>
             </div>
           ) : (
             /* HORIZONTAL NECK (Classic Landscape view) */
             <div className="relative z-10 w-full overflow-x-auto pb-3">
-              <div
-                ref={fretboardGridRef}
-                className="min-w-[620px] flex flex-row bg-[#1f120c] rounded-2xl border-2 border-[#3d2315] shadow-inner select-none relative"
-                style={{ touchAction: 'none' }}
-              >
-                {/* Floating Corner Chord Badge on the horizontal neck */}
-                <div className="absolute top-2 right-4 z-20 pointer-events-none bg-slate-950/90 border border-amber-400/50 rounded-lg px-2.5 py-1 shadow-md">
-                  <span className="text-xs font-black text-amber-300">
-                    🎯 {convention === 'polish' ? targetChord.polishName : targetChord.name} ({targetChord.formula})
-                  </span>
+              <div className="min-w-[820px] flex items-stretch justify-center">
+                {/* Horizontal Headstock on the left with 6 Tuning Pegs */}
+                <div className="w-24 shrink-0 bg-gradient-to-r from-[#140803] via-[#241108] to-[#140803] border-2 border-r-0 border-[#3d1f11] rounded-l-2xl py-3 px-2 shadow-2xl relative flex flex-col justify-between overflow-hidden">
+                  <div
+                    className="absolute inset-0 opacity-20 pointer-events-none"
+                    style={{
+                      backgroundImage:
+                        'repeating-linear-gradient(45deg, transparent, transparent 8px, rgba(0,0,0,0.4) 8px, rgba(0,0,0,0.4) 16px)',
+                    }}
+                  />
+                  {/* Top 3 Pegs (struny 6, 5, 4) */}
+                  <div className="flex justify-around -mt-3 z-10">
+                    {[0, 1, 2].map((i) => (
+                      <div key={`horiz_peg_t_${i}`} className="flex flex-col items-center">
+                        <div className="w-3.5 h-4.5 rounded bg-gradient-to-b from-[#d4af37] via-[#fef08a] to-[#b45309] shadow border border-[#78350f]" />
+                        <div className="w-1.5 h-2 bg-slate-300 shadow-inner" />
+                      </div>
+                    ))}
+                  </div>
+
+                  {/* Golden Harmonix Inlay */}
+                  <div className="text-center relative z-10 rotate-[-90deg]">
+                    <span className="font-serif italic font-black text-[11px] tracking-widest text-amber-200 drop-shadow">
+                      HARMONIX
+                    </span>
+                  </div>
+
+                  {/* Bottom 3 Pegs (struny 3, 2, 1) */}
+                  <div className="flex justify-around -mb-3 z-10">
+                    {[3, 4, 5].map((i) => (
+                      <div key={`horiz_peg_b_${i}`} className="flex flex-col items-center">
+                        <div className="w-1.5 h-2 bg-slate-300 shadow-inner" />
+                        <div className="w-3.5 h-4.5 rounded bg-gradient-to-t from-[#d4af37] via-[#fef08a] to-[#b45309] shadow border border-[#78350f]" />
+                      </div>
+                    ))}
+                  </div>
                 </div>
 
-                {/* Nut column */}
-                <div className="w-16 border-r-4 border-[#e2d5c3] bg-[#0d0705] flex flex-col justify-around py-2 px-1">
+                {/* Main Fretboard Grid with Ivory Binding */}
+                <div
+                  ref={fretboardGridRef}
+                  className="flex-1 flex flex-row bg-[#1a0f0a] border-t-4 border-b-4 border-[#e8ded0] border-l-0 border-r-0 shadow-inner select-none relative"
+                  style={{ touchAction: 'none' }}
+                >
+                  {/* Floating Corner Chord Badge on the horizontal neck */}
+                  <div className="absolute top-2 right-4 z-20 pointer-events-none bg-slate-950/90 border border-amber-400/50 rounded-lg px-2.5 py-1 shadow-md">
+                    <span className="text-xs font-black text-amber-300">
+                      🎯 {convention === 'polish' ? targetChord.polishName : targetChord.name} ({targetChord.formula})
+                    </span>
+                  </div>
+
+                  {/* Nut column - Aged Bone Nut */}
+                  <div className="w-16 border-r-4 border-[#cfc0a6] bg-gradient-to-r from-[#f7f2ea] via-[#ede4d3] to-[#ded2bd] flex flex-col justify-around py-2 px-1 shadow-[4px_0_10px_rgba(0,0,0,0.6)]">
                   {orderedStrings.map((stringInfo) => {
                     const sIdx = stringInfo.index;
                     const currentFret = activeGrip[sIdx];
@@ -1077,7 +1262,9 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
 
                       {/* Fret pearl marker */}
                       {hasDotMarker && (
-                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-slate-200/70 border border-slate-300 shadow-inner pointer-events-none" />
+                        <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 w-4 h-4 rounded-full bg-gradient-to-tr from-[#f8fafc] via-[#fef3c7] to-[#e2e8f0] border border-amber-300/60 shadow-[0_0_8px_rgba(254,243,199,0.4)] pointer-events-none flex items-center justify-center text-[8px] font-bold text-slate-700">
+                          {fretNum}
+                        </div>
                       )}
 
                       {/* Quick Interactive Barre Button + Fret Number */}
@@ -1185,6 +1372,27 @@ export const GuitarFretboardGame: React.FC<GuitarFretboardGameProps> = ({
                     </div>
                   );
                 })}
+                </div>
+
+                {/* Horizontal Soundboard Body with Rosette and Soundhole on right */}
+                <div className="w-48 shrink-0 bg-gradient-to-r from-[#180b05] via-[#2a1308] to-[#120703] border-2 border-l-0 border-[#3d1f11] rounded-r-2xl py-2 px-2 shadow-2xl relative flex items-center justify-center overflow-hidden">
+                  <div
+                    className="absolute inset-0 opacity-25 pointer-events-none"
+                    style={{
+                      backgroundImage:
+                        'radial-gradient(circle at 70% 50%, rgba(245, 158, 11, 0.25) 0%, rgba(120, 53, 15, 0.2) 50%, rgba(15, 6, 2, 0.95) 100%)',
+                    }}
+                  />
+                  {/* Rosette and Soundhole */}
+                  <div className="w-36 h-36 rounded-full border-4 border-[#3e1f10] bg-gradient-to-br from-[#c89868] via-[#e8d2b5] to-[#8c572b] p-1.5 shadow-xl relative flex items-center justify-center">
+                    <div className="w-full h-full rounded-full border-2 border-[#e6dbc9] p-1 bg-gradient-to-tr from-[#3b82f6]/20 via-[#10b981]/25 to-[#f59e0b]/30">
+                      <div className="w-full h-full rounded-full bg-gradient-to-b from-[#050201] to-[#0d0603] shadow-[inset_0_8px_20px_rgba(0,0,0,0.95)] flex flex-col items-center justify-center text-center p-1 border border-black">
+                        <span className="font-serif italic font-black text-[7px] text-amber-500">HARMONIX</span>
+                        <span className="text-[5px] text-slate-400">Custom Acoustic</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
           )}

@@ -24,7 +24,7 @@ interface PianoKeyboardProps {
   keyCount?: number;  // default 29 (C3 to E5) or 37
   selectedMidiNotes?: number[];
   activeMidiNotes?: number[];
-  highlightMap?: Record<number, 'correct' | 'incorrect' | 'hint' | 'active'>;
+  highlightMap?: Record<number, 'correct' | 'incorrect' | 'hint' | 'active' | 'root'>;
   interactive?: boolean;
   selectionMode?: 'toggle' | 'playOnly';
   onNoteToggle?: (midi: number) => void;
@@ -467,6 +467,9 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
                 } else if (status === 'incorrect') {
                   bgClass = 'bg-rose-300 text-rose-950 font-black';
                   extraRing = 'ring-2 ring-rose-500';
+                } else if (status === 'root') {
+                  bgClass = 'bg-amber-400 text-slate-950 font-black';
+                  extraRing = 'ring-2 ring-amber-300 ring-offset-2 ring-offset-slate-950 shadow-lg shadow-amber-400/50 animate-pulse';
                 } else if (status === 'hint') {
                   bgClass = 'bg-amber-300 text-amber-950 font-black animate-pulse';
                   extraRing = 'ring-2 ring-amber-400';
@@ -486,11 +489,15 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
                     onClick={() => handleTrigger(k.midi)}
                     style={{ width: `${whiteKeyWidthPx}px` }}
                     className={`relative ${whiteKeyHeightClass} rounded-b-lg ${borderClass} ${bgClass} ${extraRing} flex flex-col justify-end items-center pb-2 transition-all duration-75 active:scale-y-[0.98] active:brightness-90 shrink-0 cursor-pointer focus:outline-none shadow-sm`}
-                    title={`${getFullNoteLabel(k.note, convention)}${k.octave} (Kliknij, aby zagrać)`}
+                    title={`${getFullNoteLabel(k.note, convention)}${k.octave} ${status === 'root' ? '(Pryma akordu)' : ''} (Kliknij, aby zagrać)`}
                   >
-                    {isSelected && (
+                    {status === 'root' ? (
+                      <span className="px-1.5 py-0.5 rounded-full text-[9px] font-black uppercase tracking-wider bg-slate-950 text-amber-300 mb-1 border border-amber-300 shadow-sm animate-pulse">
+                        Pryma
+                      </span>
+                    ) : isSelected ? (
                       <span className="w-2.5 h-2.5 rounded-full bg-sky-600 mb-1 ring-1 ring-white"></span>
-                    )}
+                    ) : null}
                     {status === 'correct' && (
                       <span className="w-2.5 h-2.5 rounded-full bg-emerald-700 mb-1 ring-1 ring-white"></span>
                     )}
@@ -523,6 +530,9 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
                 } else if (status === 'incorrect') {
                   bgClass = 'bg-rose-600 text-white font-bold';
                   extraRing = 'ring-2 ring-rose-400';
+                } else if (status === 'root') {
+                  bgClass = 'bg-amber-400 text-slate-950 font-black';
+                  extraRing = 'ring-2 ring-amber-300 ring-offset-1 ring-offset-slate-950 shadow-lg shadow-amber-400/50 animate-pulse';
                 } else if (status === 'hint') {
                   bgClass = 'bg-amber-500 text-black font-bold animate-pulse';
                   extraRing = 'ring-2 ring-amber-300';
@@ -548,11 +558,15 @@ export const PianoKeyboard: React.FC<PianoKeyboardProps> = ({
                       left: `calc(${whiteKeysBefore} * ${whiteKeyWidthPx}px - (${blackKeyWidthPx}px / 2))`,
                     }}
                     className={`absolute z-10 ${blackKeyHeightClass} rounded-b-md ${borderClass} ${bgClass} ${extraRing} shadow-lg flex flex-col justify-end items-center pb-1.5 transition-all duration-75 active:scale-y-[0.98] active:brightness-125 cursor-pointer focus:outline-none`}
-                    title={`${getFullNoteLabel(k.note, convention)}${k.octave} (Kliknij, aby zagrać)`}
+                    title={`${getFullNoteLabel(k.note, convention)}${k.octave} ${status === 'root' ? '(Pryma akordu)' : ''} (Kliknij, aby zagrać)`}
                   >
-                    {isSelected && (
+                    {status === 'root' ? (
+                      <span className="w-4 h-4 rounded-full bg-slate-950 text-amber-300 text-[9px] font-black flex items-center justify-center mb-0.5 ring-1 ring-amber-300 shadow-sm animate-pulse" title="Pryma akordu">
+                        P
+                      </span>
+                    ) : isSelected ? (
                       <span className="w-2 h-2 rounded-full bg-sky-300 mb-0.5 ring-1 ring-white"></span>
-                    )}
+                    ) : null}
                     {status === 'correct' && (
                       <span className="w-2 h-2 rounded-full bg-emerald-300 mb-0.5 ring-1 ring-white"></span>
                     )}

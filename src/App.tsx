@@ -20,19 +20,23 @@ import { Header } from './components/Header';
 import { ChessboardProgressionBoard } from './components/ChessboardProgressionBoard';
 import { TheoryModal } from './components/TheoryModal';
 import { CircleOfFifths } from './components/CircleOfFifths';
-import { ProgressionLibrary, LoadedProgressionMetadata } from './components/ProgressionLibrary';
+import { ProgressionLibrary } from './components/ProgressionLibrary';
 import { FreePlaySandbox } from './components/FreePlaySandbox';
 import { ChordQuizGame } from './components/ChordQuizGame';
 import { GuitarFretboardGame } from './components/GuitarFretboardGame';
 import { scrollToTonalityProgressionBar, scrollToLoadedProgressionCard, scrollToFirstPianoKeyboard } from './utils/scrollHelper';
 import { recordPatternLoad } from './utils/sessionTracker';
 import {
+  loadInitialLastPattern,
+  savePatternToStorage,
+  clearCurrentWorkshopPatternOnly,
+  LoadedProgressionMetadata,
+} from './utils/patternPersistence';
+import {
   Sparkles,
   Music,
   BookOpen,
 } from 'lucide-react';
-
-const WORKSHOP_PROG_STORAGE_KEY = 'harmonix_workshop_loaded_progression_v1';
 
 export default function App() {
   const [activeView, setActiveView] = useState<'workshop' | 'library' | 'guess' | 'circle' | 'sandbox'>('workshop');
@@ -56,49 +60,20 @@ export default function App() {
     } catch {}
   };
 
-  // User Request: Wczytywanie ostatnio wstawionego do warsztatu wzorca po ponownym uruchomieniu aplikacji
-  const [loadedProgression, setLoadedProgression] = useState<ChordDefinition[] | null>(() => {
-    try {
-      const raw = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed && Array.isArray(parsed.chords) && parsed.chords.length > 0) {
-          return parsed.chords;
-        }
-      }
-    } catch {}
-    return null;
-  });
+  // User Request: Przy otwieraniu aplikacji niech będzie wczytany ostatni wzorzec z ostatniego używania aplikacji
+  const [initialPattern] = useState(() => loadInitialLastPattern());
 
-  const [loadedKeyInfo, setLoadedKeyInfo] = useState<LoadedProgressionMetadata | null>(() => {
-    try {
-      const raw = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        if (parsed?.metadata) {
-          return parsed.metadata;
-        }
-      }
-    } catch {}
-    return null;
-  });
+  const [loadedProgression, setLoadedProgression] = useState<ChordDefinition[] | null>(
+    () => initialPattern.chords
+  );
 
-  const [loadedProgressionId, setLoadedProgressionId] = useState<string | null>(() => {
-    try {
-      const rawWorkshop = localStorage.getItem(WORKSHOP_PROG_STORAGE_KEY);
-      if (rawWorkshop) {
-        const parsed = JSON.parse(rawWorkshop);
-        if (parsed?.metadata?.progId) return parsed.metadata.progId;
-        if (parsed?.progressionId) return parsed.progressionId;
-      }
-      const raw = localStorage.getItem('harmonix_progression_library_settings_v1');
-      if (raw) {
-        const parsed = JSON.parse(raw);
-        return parsed?.lastLoadedProgressionId || null;
-      }
-    } catch {}
-    return null;
-  });
+  const [loadedKeyInfo, setLoadedKeyInfo] = useState<LoadedProgressionMetadata | null>(
+    () => initialPattern.metadata
+  );
+
+  const [loadedProgressionId, setLoadedProgressionId] = useState<string | null>(
+    () => initialPattern.progressionId
+  );
 
   const [workshopResults, setWorkshopResults] = useState<Record<number, WorkshopStepResult>>(() => {
     try {
@@ -132,10 +107,7 @@ export default function App() {
     setLoadedKeyInfo(null);
     setLoadedProgressionId(null);
     setWorkshopResults({});
-    try {
-      localStorage.removeItem(WORKSHOP_PROG_STORAGE_KEY);
-      localStorage.removeItem('harmonix_workshop_results_v1');
-    } catch {}
+    clearCurrentWorkshopPatternOnly();
   }, []);
 
   const handleLoadFromLibrary = (
@@ -145,19 +117,11 @@ export default function App() {
   ) => {
     setLoadedProgression(chords);
     setLoadedKeyInfo(metadata || null);
-    if (metadata?.progId) {
-      setLoadedProgressionId(metadata.progId);
+    const progId = metadata?.progId || null;
+    if (progId) {
+      setLoadedProgressionId(progId);
     }
-    try {
-      localStorage.setItem(
-        WORKSHOP_PROG_STORAGE_KEY,
-        JSON.stringify({
-          chords,
-          metadata: metadata || null,
-          progressionId: metadata?.progId || null,
-        })
-      );
-    } catch {}
+    savePatternToStorage(chords, metadata || null, progId);
     setWorkshopResults({});
     try {
       localStorage.removeItem('harmonix_workshop_results_v1');

@@ -12,7 +12,6 @@ import {
   CHORD_QUALITY_NAMES,
   createChordDefinition,
   getNoteLabel,
-  getFullNoteLabel,
 } from '../utils/musicTheory';
 import { sound } from '../utils/audioEngine';
 import { PianoKeyboard } from './PianoKeyboard';
@@ -374,8 +373,8 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
 
   // Current Drawn Question
   const [currentMidiNotes, setCurrentMidiNotes] = useState<number[]>([]);
-  const [currentInversion, setCurrentInversion] = useState<number>(0);
   const [validChords, setValidChords] = useState<ValidChordInterpretation[]>([]);
+  const [targetRootIndex, setTargetRootIndex] = useState<number | null>(null);
 
   // User Row Selections
   const [selectedRootIndex, setSelectedRootIndex] = useState<number | null>(null);
@@ -390,10 +389,9 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
   const [activeArpeggioMidi, setActiveArpeggioMidi] = useState<number | null>(null);
   const arpeggioTimeoutsRef = useRef<NodeJS.Timeout[]>([]);
 
-  // Refs for independently scrollable rows
+  // Refs for scrollable chromatic and mode rows
   const row1Ref = useRef<HTMLDivElement>(null);
   const row2Ref = useRef<HTMLDivElement>(null);
-  const row3Ref = useRef<HTMLDivElement>(null);
 
   const scrollRow = (ref: React.RefObject<HTMLDivElement | null>, delta: number) => {
     if (ref.current) {
@@ -422,6 +420,7 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
     const root = NOTE_NAMES[Math.floor(Math.random() * NOTE_NAMES.length)];
     const quality = qualities[Math.floor(Math.random() * qualities.length)];
     const chord = createChordDefinition(root, quality);
+    const rootIndex = NOTE_NAMES.indexOf(root);
 
     let midiNotes = chord.defaultNotes.map((n) => n.midi);
     let inversion = 0;
@@ -458,8 +457,8 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
     const allValid = findAllValidChordsForNotes(midiNotes);
 
     setCurrentMidiNotes(midiNotes);
-    setCurrentInversion(inversion);
     setValidChords(allValid);
+    setTargetRootIndex(rootIndex >= 0 ? rootIndex : null);
 
     // Reset user selection
     setSelectedRootIndex(null);
@@ -640,18 +639,25 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
 
   // Highlight map for keyboard
   const highlightMap = useMemo(() => {
-    const map: Record<number, 'correct' | 'incorrect' | 'hint' | 'active'> = {};
+    const map: Record<number, 'correct' | 'incorrect' | 'hint' | 'active' | 'root'> = {};
+    const targetRoot = targetRootIndex !== null ? targetRootIndex : (validChords[0]?.rootIndex ?? null);
+
     currentMidiNotes.forEach((midi) => {
+      const pitchClass = ((midi % 12) + 12) % 12;
+      const isRootMidi = targetRoot !== null && pitchClass === targetRoot;
+
       if (activeArpeggioMidi === midi) {
         map[midi] = 'active';
       } else if (isAnswered) {
         map[midi] = isCorrect ? 'correct' : 'hint';
+      } else if (showHint && isRootMidi) {
+        map[midi] = 'root';
       } else {
         map[midi] = 'active';
       }
     });
     return map;
-  }, [currentMidiNotes, activeArpeggioMidi, isAnswered, isCorrect]);
+  }, [currentMidiNotes, activeArpeggioMidi, isAnswered, isCorrect, showHint, targetRootIndex, validChords]);
 
   // Current composed preview
   const composedPreview = useMemo(() => {
@@ -665,15 +671,6 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
       (c) => !(c.rootIndex === matchedChord.rootIndex && c.quality === matchedChord.quality)
     );
   }, [validChords, matchedChord]);
-
-  // Actual pitch class note names
-  const actualNoteNames = useMemo(() => {
-    const pitchClasses = Array.from(new Set(currentMidiNotes.map((m) => ((m % 12) + 12) % 12))).sort((a, b) => a - b);
-    return pitchClasses.map((p) => {
-      const note = NOTE_NAMES[p];
-      return convention === 'polish' ? getFullNoteLabel(note, 'polish') : note;
-    });
-  }, [currentMidiNotes, convention]);
 
   return (
     <div className="space-y-6">
@@ -843,33 +840,17 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
             </button>
           </div>
 
-          <div className="text-xs text-slate-400 flex items-center gap-2">
+          <div className="text-xs text-slate-400 flex items-center gap-2 flex-wrap">
             <span className="w-2 h-2 rounded-full bg-amber-400 animate-pulse"></span>
             <span>Klawisze są interaktywne – kliknij, aby odsłuchać pojedyncze nuty</span>
+            {showHint && (
+              <span className="text-[11px] font-semibold text-amber-300 bg-amber-500/20 border border-amber-400/40 px-2 py-0.5 rounded-md flex items-center gap-1 animate-pulse">
+                <span>💡</span>
+                <span>Pryma wyróżniona na klawiaturze (bursztynowy klawisz z oznaczeniem „Pryma”)</span>
+              </span>
+            )}
           </div>
         </div>
-
-        {/* Hint Box (if enabled) */}
-        {showHint && (
-          <div className="mb-4 p-3 rounded-xl bg-amber-400/10 border border-amber-400/30 text-xs text-amber-200 flex items-start gap-2 animate-fadeIn">
-            <Info className="w-4 h-4 text-amber-400 shrink-0 mt-0.5" />
-            <div className="space-y-1">
-              <div>
-                <span className="font-bold text-amber-300">Podświetlone dźwięki ({actualNoteNames.length}):</span>{' '}
-                <span className="font-mono font-bold text-white">
-                  {actualNoteNames.join(' — ')}
-                </span>
-              </div>
-              <div className="text-slate-300">
-                Liczba możliwych interpretacji akordowych dla tego zestawu nut:{' '}
-                <strong className="text-amber-300">{validChords.length}</strong>.
-                {currentInversion > 0 && (
-                  <span className="text-amber-300 ml-1.5">(Uwaga: akord ułożony w przewrocie!)</span>
-                )}
-              </div>
-            </div>
-          </div>
-        )}
 
         {/* Piano Keyboard Component */}
         <div className="w-full flex justify-center py-2">
@@ -1058,7 +1039,8 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
         </div>
 
         {/* =========================================================================
-            ROW 3: Rozszerzenie / Modyfikator (—, 6, 7, 7b5, sus2, sus4, 7sus4, add9)
+            ROW 3: Rozszerzenie / Modyfikator (—, 5, 6, 7, 7b5, 9, 6/9, 7b9, 7#9, sus2, sus4, 7sus4, 9sus4, add9)
+            Wszystkie przyciski mieszczą się w tylu rzędach ile potrzeba, bez przesuwania w prawo/lewo!
             ========================================================================= */}
         <div className="space-y-1.5">
           <div className="flex items-center justify-between">
@@ -1066,32 +1048,14 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
               <span className="w-5 h-5 rounded-full bg-amber-400 text-slate-950 font-black flex items-center justify-center text-[10px]">
                 3
               </span>
-              <span>Wiersz 3: Rozszerzenie / Modyfikator (6, 7, sus, add9...)</span>
+              <span>Wiersz 3: Rozszerzenie / Modyfikator (6, 7, 9, add9, sus...)</span>
             </div>
-            <div className="flex items-center gap-1 sm:hidden">
-              <button
-                type="button"
-                onClick={() => scrollRow(row3Ref, -120)}
-                className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                title="Przewiń w lewo"
-              >
-                <ChevronLeft className="w-3.5 h-3.5" />
-              </button>
-              <button
-                type="button"
-                onClick={() => scrollRow(row3Ref, 120)}
-                className="p-1 rounded bg-slate-800 text-slate-300 hover:text-white"
-                title="Przewiń w prawo"
-              >
-                <ChevronRight className="w-3.5 h-3.5" />
-              </button>
-            </div>
+            <span className="text-[10px] text-slate-400 font-medium">
+              Wszystkie opcje na widoku
+            </span>
           </div>
 
-          <div
-            ref={row3Ref}
-            className="overflow-x-auto no-scrollbar scroll-smooth flex items-center gap-2 py-1.5 px-0.5"
-          >
+          <div className="grid grid-cols-3 min-[420px]:grid-cols-4 sm:grid-cols-5 md:grid-cols-7 gap-1.5 sm:gap-2 py-1 px-0.5">
             {EXTENSION_OPTIONS.map((opt) => {
               const isSelected = selectedExtId === opt.id;
 
@@ -1101,17 +1065,18 @@ export const ChordQuizGame: React.FC<ChordQuizGameProps> = ({ convention, isActi
                   type="button"
                   disabled={isAnswered}
                   onClick={() => handleSelectExt(opt.id)}
-                  className={`px-3.5 sm:px-4 py-2.5 rounded-xl border text-center transition-all shrink-0 cursor-pointer min-w-[85px] ${
+                  className={`px-2 py-2 sm:py-2.5 rounded-xl border text-center transition-all cursor-pointer flex flex-col items-center justify-center ${
                     isSelected
                       ? 'bg-amber-400 text-slate-950 font-black border-amber-300 shadow-md shadow-amber-400/25 scale-[1.02]'
                       : 'bg-slate-950/80 hover:bg-slate-800/90 text-slate-200 border-slate-800 hover:border-slate-700'
                   } ${isAnswered ? 'opacity-80 cursor-default' : 'active:scale-95'}`}
                 >
-                  <div className="text-sm sm:text-base font-extrabold">{opt.label}</div>
+                  <div className="text-sm sm:text-base font-extrabold leading-tight">{opt.label}</div>
                   <div
-                    className={`text-[10px] ${
+                    className={`text-[9px] sm:text-[10px] leading-tight truncate w-full ${
                       isSelected ? 'text-slate-900 font-semibold' : 'text-slate-400'
                     }`}
+                    title={opt.sub}
                   >
                     {opt.sub}
                   </div>

@@ -56,6 +56,7 @@ import { LoadedProgressionMetadata, formatDegreeLabel, getProgressionRomanFormul
 import { scrollToTonalityProgressionBar, scrollToFirstPianoKeyboard } from '../utils/scrollHelper';
 import { generateSmartProgression, saveCustomProgression } from '../utils/progressionGenerator';
 import { parseChordSymbol } from '../utils/musicTheory';
+import { getLastUsedPatternInfo } from '../utils/patternPersistence';
 
 export interface CardTheme {
   id: string;
@@ -1001,6 +1002,19 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
     scrollToFirstPianoKeyboard();
   }, [onClearLoadedProgression]);
 
+  // Restore the last used pattern from storage if currently in quiz mode
+  const handleRestoreLastPattern = useCallback(() => {
+    const last = getLastUsedPatternInfo();
+    if (last && last.chords.length > 0) {
+      if (onLoadProgression) {
+        onLoadProgression(last.chords, last.metadata || undefined);
+      } else {
+        setSteps(buildStepsFromChordDefinitions(last.chords, last.metadata?.root, last.metadata?.mode));
+      }
+      scrollToFirstPianoKeyboard();
+    }
+  }, [onLoadProgression]);
+
   // Synchronized keyboard scrolling state and registry across ALL levels
   const keyboardContainersRef = useRef<Map<string, HTMLDivElement>>(new Map());
   const isSyncingRef = useRef(false);
@@ -1312,10 +1326,10 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
 
   // Apply Progression Presets
   const handleApplyPreset = (presetType: '4_screen' | '6_ballad' | '8_pachelbel' | '8_jazz' | '12_blues') => {
-    if (onClearLoadedProgression) {
-      onClearLoadedProgression();
-    }
     if (presetType === '4_screen') {
+      if (onClearLoadedProgression) {
+        onClearLoadedProgression();
+      }
       setSteps(createScreenshotStarterSteps());
       return;
     }
@@ -1329,7 +1343,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         { root: 'G' as NoteName, quality: 'major' as ChordQuality, deg: 'V' },
         { root: 'C' as NoteName, quality: 'major' as ChordQuality, deg: 'I' },
       ];
-      setSteps(buildStepsFromProgression(chordSymbols));
+      const chords = chordSymbols.map((item) =>
+        validateOrCorrectChordDegree(createChordDefinition(item.root, item.quality, item.deg), 'C', 'major')
+      );
+      setSteps(buildStepsFromChordDefinitions(chords, 'C', 'major'));
+      onLoadProgression?.(chords, {
+        progName: 'Ballada Pop / Soul (6 akordów)',
+        progId: 'preset_6_ballad',
+        keyName: 'C-dur',
+        degrees: 'I – vi – IV – ii – V – I',
+        root: 'C',
+        mode: 'major',
+      });
       return;
     }
 
@@ -1344,7 +1369,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         { root: 'F' as NoteName, quality: 'major' as ChordQuality, deg: 'IV' },
         { root: 'G' as NoteName, quality: 'major' as ChordQuality, deg: 'V' },
       ];
-      setSteps(buildStepsFromProgression(chordSymbols));
+      const chords = chordSymbols.map((item) =>
+        validateOrCorrectChordDegree(createChordDefinition(item.root, item.quality, item.deg), 'C', 'major')
+      );
+      setSteps(buildStepsFromChordDefinitions(chords, 'C', 'major'));
+      onLoadProgression?.(chords, {
+        progName: 'Kanon Pachelbela (8 akordów)',
+        progId: 'preset_8_pachelbel',
+        keyName: 'C-dur',
+        degrees: 'I – V – vi – iii – IV – I – IV – V',
+        root: 'C',
+        mode: 'major',
+      });
       return;
     }
 
@@ -1359,7 +1395,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         { root: 'D' as NoteName, quality: 'min7' as ChordQuality, deg: 'ii7' },
         { root: 'G' as NoteName, quality: 'dom7' as ChordQuality, deg: 'V7' },
       ];
-      setSteps(buildStepsFromProgression(chordSymbols));
+      const chords = chordSymbols.map((item) =>
+        validateOrCorrectChordDegree(createChordDefinition(item.root, item.quality, item.deg), 'C', 'major')
+      );
+      setSteps(buildStepsFromChordDefinitions(chords, 'C', 'major'));
+      onLoadProgression?.(chords, {
+        progName: 'Jazz Standard (Koło Kwintowe)',
+        progId: 'preset_8_jazz',
+        keyName: 'C-dur',
+        degrees: 'Imaj7 – VI7 – ii7 – V7 – iii7 – VI7 – ii7 – V7',
+        root: 'C',
+        mode: 'major',
+      });
       return;
     }
 
@@ -1378,7 +1425,18 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
         { root: 'C', quality: 'dom7', deg: 'I7' },
         { root: 'G', quality: 'dom7', deg: 'V7' },
       ];
-      setSteps(buildStepsFromProgression(bluesSeq));
+      const chords = bluesSeq.map((item) =>
+        validateOrCorrectChordDegree(createChordDefinition(item.root, item.quality, item.deg), 'C', 'major')
+      );
+      setSteps(buildStepsFromChordDefinitions(chords, 'C', 'major'));
+      onLoadProgression?.(chords, {
+        progName: '12-taktowy Blues',
+        progId: 'preset_12_blues',
+        keyName: 'C-dur',
+        degrees: 'I7 – I7 – I7 – I7 – IV7 – IV7 – I7 – I7 – V7 – IV7 – I7 – V7',
+        root: 'C',
+        mode: 'major',
+      });
       return;
     }
   };
@@ -2191,6 +2249,19 @@ export const ChessboardProgressionBoard: React.FC<ChessboardProgressionBoardProp
             >
               <GraduationCap className="w-3.5 h-3.5 text-emerald-400" />
               <span>Wróć do quizu</span>
+            </button>
+          )}
+
+          {/* Wczytaj ostatni wzorzec z ostatniego używania aplikacji */}
+          {!hasLoadedPattern && (
+            <button
+              type="button"
+              onClick={handleRestoreLastPattern}
+              className="px-2.5 py-1 text-[11px] font-bold rounded-xl transition-all cursor-pointer flex items-center gap-1.5 shadow-sm active:scale-95 shrink-0 bg-sky-500/20 hover:bg-sky-400 text-sky-300 hover:text-slate-950 border border-sky-400/40"
+              title="Wczytaj ostatnio używany wzorzec do warsztatu"
+            >
+              <Layers className="w-3.5 h-3.5 text-sky-400" />
+              <span>Wczytaj ostatni wzorzec</span>
             </button>
           )}
 
